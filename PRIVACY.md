@@ -67,6 +67,7 @@ Loudr is fully open source under the **GPL-3.0 license**. You can read every lin
 
 ## Contact
 
-Questions? Open a GitHub Issue or Discussion.
+Questions or privacy concerns? Reach out via any of the following:
 
-We have no support email because we have no server to receive it on.
+- **Email:** <hi@rhul.me>
+- **GitHub:** Open an Issue or Discussion at <https://github.com/drph4nt0m/loudr>
