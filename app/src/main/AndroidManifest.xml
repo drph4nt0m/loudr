@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+        VoluMax — Minimal Permission Manifest
+        ======================================
+        Only the three permissions strictly required for the core volume boost
+        feature are declared here at install time. All other permissions
+        (RECORD_AUDIO, SYSTEM_ALERT_WINDOW, POST_NOTIFICATIONS, QUERY_ALL_PACKAGES)
+        are requested at runtime, gated behind the specific opt-in feature toggle
+        in Settings. INTERNET is never declared — this app is fully offline.
+    -->
+
+    <!-- Core: required to attach AudioEffect to an audio session -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <!-- Core: run VolumeBoostService as a foreground service -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+
+    <!-- Required on API 29+ to declare the foreground service type -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+
+    <!-- Runtime — requested only when user enables the notification/service -->
+    <!-- android.permission.POST_NOTIFICATIONS declared at runtime (API 33+) -->
+
+    <!-- Runtime — requested only when user enables the Waveform Visualizer -->
+    <!-- android.permission.RECORD_AUDIO declared at runtime -->
+
+    <!-- Runtime — requested only when user enables the Floating Overlay -->
+    <!-- android.permission.SYSTEM_ALERT_WINDOW declared at runtime -->
+
+    <!-- Runtime — requested only when user opens Per-App Profiles -->
+    <!-- android.permission.QUERY_ALL_PACKAGES declared at runtime -->
+
+    <application
+        android:name=".LoudrApp"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.VoluMax">
+
+        <!-- Main Activity -->
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Foreground boost service -->
+        <service
+            android:name=".service.VolumeBoostService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <!-- Quick Settings Tile -->
+        <service
+            android:name=".tile.LoudrQSTile"
+            android:exported="true"
+            android:icon="@drawable/ic_boost_tile"
+            android:label="@string/qs_tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- Home Screen Widget -->
+        <receiver
+            android:name=".widget.BoostWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/boost_widget_info" />
+        </receiver>
+
+        <!-- Audio session broadcast receiver -->
+        <receiver
+            android:name=".engine.AudioSessionMonitor"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.media.action.HEADSET_PLUG" />
+                <action android:name="android.bluetooth.headset.action.CONNECTION_STATE_CHANGED" />
+                <action android:name="android.bluetooth.a2dp.profile.action.CONNECTION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
+    </application>
+
+</manifest>

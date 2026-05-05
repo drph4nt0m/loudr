@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">Loudr</string>
+    <string name="qs_tile_label">Loudr · Volume Boost</string>
+    <string name="notification_channel_name">Loudr Boost</string>
+    <string name="notification_channel_description">Live boost status and quick controls</string>
+    <string name="boost_active">Boosting</string>
+    <string name="boost_off">Paused</string>
+    <string name="action_toggle">Toggle boost</string>
+    <string name="action_boost_up">Increase boost</string>
+    <string name="action_boost_down">Decrease boost</string>
+    <string name="widget_label">Loudr</string>
+</resources>
