@@ -625,7 +625,7 @@ private fun PrivacyFooter() {
             modifier         = Modifier.size(width = 120.dp, height = 44.dp),
             contentAlignment = Alignment.Center,
         ) {
-            TextButton(onClick = { uriHandler.openUri("https://github.com/loudr-app/loudr/blob/main/PRIVACY.md") }) {
+            TextButton(onClick = { uriHandler.openUri("https://github.com/drph4nt0m/loudr/blob/main/PRIVACY.md") }) {
                 Text(
                     text  = "Privacy Policy",
                     style = MaterialTheme.typography.labelSmall,
