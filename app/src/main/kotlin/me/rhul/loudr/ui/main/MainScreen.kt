@@ -665,6 +665,9 @@ private fun CardToggleRow(
 @Composable
 private fun PrivacyFooter() {
     val uriHandler = LocalUriHandler.current
+    val versionName = me.rhul.loudr.BuildConfig.VERSION_NAME
+    val versionCode = me.rhul.loudr.BuildConfig.VERSION_CODE
+    
     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text      = "No data collected · No internet · No analytics",
@@ -673,13 +676,34 @@ private fun PrivacyFooter() {
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(4.dp))
-        Box(
-            modifier         = Modifier.size(width = 120.dp, height = 44.dp),
-            contentAlignment = Alignment.Center,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
         ) {
-            TextButton(onClick = { uriHandler.openUri("https://github.com/drph4nt0m/loudr/blob/main/PRIVACY.md") }) {
+            Box(
+                modifier         = Modifier.height(44.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                TextButton(onClick = { uriHandler.openUri("https://github.com/drph4nt0m/loudr/blob/main/PRIVACY.md") }) {
+                    Text(
+                        text  = "Privacy Policy",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                    )
+                }
+            }
+            Text(
+                text  = "·",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                modifier = Modifier.padding(horizontal = 4.dp)
+            )
+            Box(
+                modifier         = Modifier.height(44.dp),
+                contentAlignment = Alignment.Center,
+            ) {
                 Text(
-                    text  = "Privacy Policy",
+                    text  = "v$versionName ($versionCode)",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                 )

@@ -12,7 +12,7 @@
 #   --no-build                → skip the bundleRelease step
 #   --no-tag                  → skip creating a git tag
 #   --no-push                 → skip git push
-#   --upload                  → upload AAB to Play Console after build
+#   --no-upload               → skip upload to Play Console
 #   --track=<track>           → Play track: internal (default), beta, production
 #   --notes="<text>"          → "What's new" release notes (max 500 chars)
 # =============================================================================
@@ -36,7 +36,7 @@ BUNDLE_OUT="$SCRIPT_DIR/app/build/outputs/bundle/release/app-release.aab"
 [[ -f "$GRADLE" ]] || error "Cannot find app/build.gradle.kts — run this from the project root."
 
 # ── Parse flags ───────────────────────────────────────────────────────────────
-DO_BUILD=true; DO_TAG=true; DO_PUSH=true; DO_UPLOAD=false
+DO_BUILD=true; DO_TAG=true; DO_PUSH=true; DO_UPLOAD=true
 UPLOAD_TRACK="internal"; RELEASE_NOTES=""; BUMP_ARG=""
 
 for arg in "$@"; do
@@ -44,7 +44,7 @@ for arg in "$@"; do
     --no-build)    DO_BUILD=false ;;
     --no-tag)      DO_TAG=false ;;
     --no-push)     DO_PUSH=false ;;
-    --upload)      DO_UPLOAD=true ;;
+    --no-upload)   DO_UPLOAD=false ;;
     --track=*)     UPLOAD_TRACK="${arg#--track=}" ;;
     --notes=*)     RELEASE_NOTES="${arg#--notes=}" ;;
     -*)            error "Unknown flag: $arg" ;;
