@@ -4,6 +4,7 @@ import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -70,8 +71,8 @@ class SafetyLimiter @Inject constructor() {
     /** Emits [SafetyEvent]s such as [SafetyEvent.ExposureWarning]. */
     val safetyEvents: StateFlow<SafetyEvent?> = _safetyEvents.asStateFlow()
 
-    // Exposure tracking
-    private var loudStartMs: Long? = null
+    // Exposure tracking — AtomicLong with -1L sentinel (replaces nullable Long to avoid data races)
+    private val loudStartMs = AtomicLong(-1L)
 
     // -------------------------------------------------------------------------
     // Public API
@@ -136,18 +137,17 @@ class SafetyLimiter @Inject constructor() {
     fun recordExposureTick(level: Float) {
         if (level >= LOUD_THRESHOLD) {
             val now = System.currentTimeMillis()
-            val start = loudStartMs ?: run {
-                loudStartMs = now
-                now
-            }
+            // Only set the start timestamp if not already tracking (atomic compare-and-set)
+            loudStartMs.compareAndSet(-1L, now)
+            val start = loudStartMs.get()
             val elapsedMinutes = (now - start) / 60_000L
             if (elapsedMinutes >= EXPOSURE_WARNING_MINUTES) {
                 _safetyEvents.value = SafetyEvent.ExposureWarning(elapsedMinutes)
-                loudStartMs = null  // Reset after warning
+                loudStartMs.set(-1L)  // Reset after warning
                 Log.w(TAG, "Exposure warning fired after ${elapsedMinutes}min")
             }
         } else {
-            loudStartMs = null  // Reset when level drops
+            loudStartMs.set(-1L)  // Reset when level drops
         }
     }
 

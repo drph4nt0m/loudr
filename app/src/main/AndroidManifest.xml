@@ -2,8 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!--
-        VoluMax — Minimal Permission Manifest
-        ======================================
+        Loudr — Minimal Permission Manifest
+        ====================================
         Only the three permissions strictly required for the core volume boost
         feature are declared here at install time. All other permissions
         (RECORD_AUDIO, SYSTEM_ALERT_WINDOW, POST_NOTIFICATIONS, QUERY_ALL_PACKAGES)
@@ -21,7 +21,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
     <!-- Runtime — requested only when user enables the notification/service -->
-    <!-- android.permission.POST_NOTIFICATIONS declared at runtime (API 33+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Runtime — requested only when user enables the Waveform Visualizer -->
     <!-- android.permission.RECORD_AUDIO declared at runtime -->
@@ -82,6 +82,18 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/boost_widget_info" />
+        </receiver>
+
+        <!-- 1x1 Quick Toggle Widget -->
+        <receiver
+            android:name=".widget.ToggleWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/toggle_widget_info" />
         </receiver>
 
         <!-- Audio session broadcast receiver -->

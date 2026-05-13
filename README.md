@@ -15,13 +15,13 @@ Loudr amplifies your Android device's audio output beyond the system maximum —
 ## Features
 
 - **+300% boost** via Android's `LoudnessEnhancer` API
-- **Per-stream control** — boost media, calls, notifications, and alarms independently
-- **Safety limiter** — caps boost at +150% to protect your hearing, with a clear warning when disabled
+- **Safety limiter** — caps boost at +150% to protect your hearing, with an opt-in Expert Mode for the full range
+- **Hearing exposure warnings** — alerts after sustained loud listening
 - **Bass boost** — enhanced low-frequency output via `DynamicsProcessing`
-- **Auto-boost** — activates automatically when headphones connect
+- **Auto-boost on headphone connect** — activates automatically when headset or Bluetooth device connects
 - **Themes** — Dynamic (Material You), Dark, and AMOLED
 - **Quick Settings tile** for one-tap toggle
-- **Home screen widget**
+- **Home screen widgets** — 1×1 toggle and 2×1 boost pill
 
 ## Privacy
 
@@ -49,8 +49,11 @@ cd loudr
 # Debug build
 ./gradlew assembleDebug
 
-# Release build (requires signing config in local.properties — see below)
+# Release bundle (requires signing config in local.properties — see below)
 ./gradlew bundleRelease
+
+# Or use the release helper script (handles version bump, build, git tag & push)
+./release.sh
 ```
 
 ### Signing setup

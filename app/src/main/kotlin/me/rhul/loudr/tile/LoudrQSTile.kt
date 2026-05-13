@@ -27,21 +27,26 @@ class LoudrQSTile : TileService() {
     @Inject
     lateinit var engine: AudioEngineRepository
 
+    private var tileJob: kotlinx.coroutines.Job? = null
     private val tileScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun onStartListening() {
         super.onStartListening()
-        tileScope.launch {
-            engine.isActive.collect { updateTile() }
-        }
-        tileScope.launch {
-            engine.boostLevel.collect { updateTile() }
+        tileJob = tileScope.launch {
+            launch { engine.isActive.collect { updateTile() } }
+            launch { engine.boostLevel.collect { updateTile() } }
         }
     }
 
     override fun onStopListening() {
-        tileScope.cancel()
+        tileJob?.cancel()
+        tileJob = null
         super.onStopListening()
+    }
+
+    override fun onDestroy() {
+        tileScope.cancel()
+        super.onDestroy()
     }
 
     override fun onClick() {
@@ -61,7 +66,7 @@ class LoudrQSTile : TileService() {
     private fun updateTile() {
         val tile    = qsTile ?: return
         val isActive = engine.isActive.value
-        val pct      = (engine.boostLevel.value * 200).toInt()
+        val pct      = (engine.boostLevel.value * 300).toInt()
 
         tile.state    = if (isActive) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
         tile.subtitle = if (isActive) "+$pct%" else "Off"

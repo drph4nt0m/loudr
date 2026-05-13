@@ -72,9 +72,18 @@ class DynamicsProcessorEngine @Inject constructor() {
     // -------------------------------------------------------------------------
 
     private fun buildProcessor(sessionId: Int) {
+        // Try stereo first; fall back to mono if the session only has one channel.
+        processor = buildProcessorWithChannels(sessionId, 2)
+            ?: buildProcessorWithChannels(sessionId, 1)
+        if (processor == null) {
+            Log.e(TAG, "Failed to build DynamicsProcessing for session $sessionId (tried 2ch and 1ch)")
+        }
+    }
+
+    private fun buildProcessorWithChannels(sessionId: Int, channelCount: Int): DynamicsProcessing? {
         val config = DynamicsProcessing.Config.Builder(
             DynamicsProcessing.VARIANT_FAVOR_FREQUENCY_RESOLUTION,
-            /* channelCount = */ 2,
+            channelCount,
             /* preEqInUse = */ false,
             /* preEqBandCount = */ 0,
             /* mbcInUse = */ false,
@@ -84,9 +93,8 @@ class DynamicsProcessorEngine @Inject constructor() {
             /* limiterInUse = */ true,
         ).build()
 
-        try {
-            processor = DynamicsProcessing(0, sessionId, config).also { dp ->
-                // Configure a single post-EQ band for bass
+        return try {
+            DynamicsProcessing(0, sessionId, config).also { dp ->
                 val band = DynamicsProcessing.EqBand(
                     /* isEnabled = */ true,
                     /* cutoffFrequency = */ BASS_CUTOFF_HZ,
@@ -94,7 +102,6 @@ class DynamicsProcessorEngine @Inject constructor() {
                 )
                 dp.setPostEqBandAllChannelsTo(0, band)
 
-                // Configure output limiter to avoid clipping
                 val limiter = DynamicsProcessing.Limiter(
                     /* inUse    = */ true,
                     /* isEnabled = */ true,
@@ -109,7 +116,8 @@ class DynamicsProcessorEngine @Inject constructor() {
                 dp.setEnabled(isEnabled)
             }
         } catch (ex: RuntimeException) {
-            Log.e(TAG, "Failed to build DynamicsProcessing for session $sessionId", ex)
+            Log.w(TAG, "DynamicsProcessing failed with ${channelCount}ch for session $sessionId", ex)
+            null
         }
     }
 

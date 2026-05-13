@@ -1,0 +1,65 @@
+<svg width="1024" height="500" viewBox="0 0 1024 500" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <radialGradient id="bg" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+            <stop offset="0%" stop-color="#1A1A24" />
+            <stop offset="100%" stop-color="#0D0D11" />
+        </radialGradient>
+        
+        <!-- Subtle background sine waves -->
+        <linearGradient id="waveGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#FF4560" stop-opacity="0" />
+            <stop offset="50%" stop-color="#FF4560" stop-opacity="0.15" />
+            <stop offset="100%" stop-color="#FF4560" stop-opacity="0" />
+        </linearGradient>
+    </defs>
+
+    <!-- Background -->
+    <rect width="1024" height="500" fill="url(#bg)" />
+
+    <!-- Abstract Wave Background Pattern -->
+    <path d="M0,250 C200,100 300,400 512,250 C724,100 824,400 1024,250" 
+          fill="none" stroke="url(#waveGrad)" stroke-width="8" />
+    <path d="M0,250 C200,50 300,450 512,250 C724,50 824,450 1024,250" 
+          fill="none" stroke="url(#waveGrad)" stroke-width="4" opacity="0.5" />
+    <path d="M0,250 C200,150 300,350 512,250 C724,150 824,350 1024,250" 
+          fill="none" stroke="url(#waveGrad)" stroke-width="12" opacity="0.3" />
+
+    <!-- Centered Content Group -->
+    <g transform="translate(262, 160)">
+        
+        <!-- Large Wave Sine Icon -->
+        <g transform="translate(0, 0) scale(4)">
+            <path
+                d="M21,12h-2c-0.894,0 -1.662,-0.857 -1.761,-2c-0.296,-3.45 -0.749,-6 -2.749,-6s-2.5,3.582 -2.5,8s-0.5,8 -2.5,8s-2.452,-2.547 -2.749,-6c-0.1,-1.147 -0.867,-2 -1.763,-2h-2"
+                stroke-width="1.75"
+                stroke="#FF4560"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                fill="none" />
+        </g>
+
+        <!-- LOUDR Title Text -->
+        <text x="120" y="70" 
+              font-family="sans-serif" 
+              font-weight="bold" 
+              font-size="80" 
+              fill="#FFFFFF"
+              letter-spacing="4">Loudr</text>
+              
+        <!-- Tagline -->
+        <text x="125" y="125" 
+              font-family="sans-serif" 
+              font-size="28" 
+              fill="#A0A0A0"
+              letter-spacing="1">Volume booster up to +300%</text>
+
+        <!-- Feature Pills -->
+        <g transform="translate(125, 170)">
+            <rect x="0" y="0" width="130" height="36" rx="18" fill="#FF4560" fill-opacity="0.15" />
+            <text x="65" y="23" font-family="sans-serif" font-weight="bold" font-size="14" fill="#FF4560" text-anchor="middle">Zero Data</text>
+            
+            <rect x="145" y="0" width="140" height="36" rx="18" fill="#26D97F" fill-opacity="0.15" />
+            <text x="215" y="23" font-family="sans-serif" font-weight="bold" font-size="14" fill="#26D97F" text-anchor="middle">Safety Limiter</text>
+        </g>
+    </g>
+</svg>

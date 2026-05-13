@@ -14,7 +14,7 @@ class SafetyLimiterTest {
     }
 
     @Test
-    fun `default ceiling is 0_8`() {
+    fun `default ceiling is 0_5`() {
         assertEquals(SafetyLimiter.DEFAULT_CEILING, limiter.ceiling.value, 0.001f)
     }
 
@@ -78,7 +78,8 @@ class SafetyLimiterTest {
 
     @Test
     fun `no exposure warning when level below threshold`() {
-        repeat(100) { limiter.recordExposureTick(0.3f) }
+        // LOUD_THRESHOLD = 0.3f and the condition is >=, so use 0.29f (strictly below)
+        repeat(100) { limiter.recordExposureTick(0.29f) }
         assertNull(limiter.safetyEvents.value)
     }
 

@@ -1,18 +1,59 @@
-<?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@android:color/black"
+    android:background="@drawable/widget_bg"
+    android:orientation="horizontal"
+    android:gravity="center"
     android:padding="8dp">
 
-    <Button
-        android:id="@+id/widget_toggle_button"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_centerInParent="true"
-        android:text="Boost"
+    <TextView
+        android:id="@+id/widget_btn_down"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:text="−"
         android:textColor="@android:color/white"
-        android:textSize="12sp"
-        android:background="@android:color/darker_gray" />
+        android:textSize="24sp"
+        android:gravity="center"
+        android:background="@drawable/widget_btn_bg" />
 
-</RelativeLayout>
+    <LinearLayout
+        android:id="@+id/widget_toggle_button"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:background="?android:attr/selectableItemBackground">
+        
+        <TextView
+            android:id="@+id/widget_text_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="LOUDR"
+            android:textColor="#BBBBBB"
+            android:textSize="10sp"
+            android:letterSpacing="0.1"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widget_text_value"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="OFF"
+            android:textColor="@android:color/white"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+            
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/widget_btn_up"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:text="+"
+        android:textColor="@android:color/white"
+        android:textSize="24sp"
+        android:gravity="center"
+        android:background="@drawable/widget_btn_bg" />
+
+</LinearLayout>

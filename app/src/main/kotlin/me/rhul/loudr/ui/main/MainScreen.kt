@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -37,6 +38,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.windowsizeclass.WindowSizeClass
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,7 +69,6 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.rhul.loudr.R
-import me.rhul.loudr.engine.AudioStream
 import me.rhul.loudr.safety.SafetyEvent
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -74,6 +76,7 @@ import kotlin.math.sin
 
 @Composable
 fun MainScreen(
+    windowSizeClass: WindowSizeClass,
     viewModel: MainViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -93,57 +96,107 @@ fun MainScreen(
         modifier = Modifier.fillMaxSize(),
         color    = MaterialTheme.colorScheme.background,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .safeDrawingPadding()
-                .padding(horizontal = 24.dp, vertical = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            // Top bar
-            TopBar(
-                isActive      = state.isActive,
-                enabledStreams = state.enabledStreams,
-                onToggle      = { viewModel.toggleActive() },
-            )
-
-            Spacer(Modifier.height(20.dp))
-
-            // Arc — anchored from top, natural size
-            BoostArcControl(
-                boostLevel           = state.boostLevel,
-                isActive             = state.isActive,
-                safetyLimiterEnabled = state.safetyLimiterEnabled,
-                onBoostChange        = { viewModel.setBoost(it) },
-            )
-
-            Spacer(Modifier.height(20.dp))
-
-            StreamChips(
-                enabledStreams = state.enabledStreams,
-                onToggle      = { stream, enabled -> viewModel.toggleStream(stream, enabled) },
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            ControlCard(
-                bassBoostEnabled     = state.bassBoostEnabled,
-                safetyLimiterEnabled = state.safetyLimiterEnabled,
-                autoBoostOnHeadphone = state.autoBoostOnHeadphone,
-                currentTheme         = state.theme,
-                onBassBoostToggle    = { viewModel.setBassBoostEnabled(it) },
-                onLimiterToggle      = { enabled ->
-                    if (!enabled) showDisableLimiterDialog = true
-                    else viewModel.setSafetyLimiterEnabled(true)
-                },
-                onAutoBoostToggle    = { viewModel.setAutoBoostOnHeadphone(it) },
-                onThemeChange        = { viewModel.setTheme(it) },
-            )
-
-            // Push footer to bottom
-            Spacer(Modifier.weight(1f))
-
-            PrivacyFooter()
+        if (windowSizeClass.widthSizeClass == WindowWidthSizeClass.Compact) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .safeDrawingPadding()
+                    .padding(horizontal = 24.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                TopBar(
+                    isActive      = state.isActive,
+                    onToggle      = { viewModel.toggleActive() },
+                )
+                Spacer(Modifier.height(20.dp))
+                BoostArcControl(
+                    boostLevel           = state.boostLevel,
+                    isActive             = state.isActive,
+                    safetyLimiterEnabled = state.safetyLimiterEnabled,
+                    onBoostChange        = { viewModel.setBoost(it) },
+                )
+                Spacer(Modifier.height(20.dp))
+                // StreamChips removed
+                Spacer(Modifier.height(16.dp))
+                ControlCard(
+                    bassBoostEnabled     = state.bassBoostEnabled,
+                    safetyLimiterEnabled = state.safetyLimiterEnabled,
+                    autoBoostOnHeadphone = state.autoBoostOnHeadphone,
+                    notificationEnabled  = state.notificationEnabled,
+                    currentTheme         = state.theme,
+                    onBassBoostToggle    = { viewModel.setBassBoostEnabled(it) },
+                    onLimiterToggle      = { enabled ->
+                        if (!enabled) showDisableLimiterDialog = true
+                        else viewModel.setSafetyLimiterEnabled(true)
+                    },
+                    onAutoBoostToggle    = { viewModel.setAutoBoostOnHeadphone(it) },
+                    onNotificationToggle = { viewModel.setNotificationEnabled(it) },
+                    onThemeChange        = { viewModel.setTheme(it) },
+                )
+                Spacer(Modifier.weight(1f))
+                PrivacyFooter()
+            }
+        } else {
+            // Landscape or Tablet layout
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .safeDrawingPadding()
+                    .padding(horizontal = 24.dp, vertical = 12.dp)
+            ) {
+                // TopBar spans the entire width at the top
+                TopBar(
+                    isActive      = state.isActive,
+                    onToggle      = { viewModel.toggleActive() },
+                )
+                
+                Spacer(Modifier.height(32.dp))
+                
+                Row(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(48.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Left side: Centered Boost Arc
+                    Box(
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        BoostArcControl(
+                            boostLevel           = state.boostLevel,
+                            isActive             = state.isActive,
+                            safetyLimiterEnabled = state.safetyLimiterEnabled,
+                            onBoostChange        = { viewModel.setBoost(it) },
+                        )
+                    }
+                    
+                    // Right side: Controls and Footer
+                    Column(
+                        modifier = Modifier.weight(1.2f).fillMaxHeight().verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        // StreamChips removed
+                        Spacer(Modifier.height(24.dp))
+                        ControlCard(
+                            bassBoostEnabled     = state.bassBoostEnabled,
+                            safetyLimiterEnabled = state.safetyLimiterEnabled,
+                            autoBoostOnHeadphone = state.autoBoostOnHeadphone,
+                            notificationEnabled  = state.notificationEnabled,
+                            currentTheme         = state.theme,
+                            onBassBoostToggle    = { viewModel.setBassBoostEnabled(it) },
+                            onLimiterToggle      = { enabled ->
+                                if (!enabled) showDisableLimiterDialog = true
+                                else viewModel.setSafetyLimiterEnabled(true)
+                            },
+                            onAutoBoostToggle    = { viewModel.setAutoBoostOnHeadphone(it) },
+                            onNotificationToggle = { viewModel.setNotificationEnabled(it) },
+                            onThemeChange        = { viewModel.setTheme(it) },
+                        )
+                        Spacer(Modifier.height(32.dp))
+                        PrivacyFooter()
+                    }
+                }
+            }
         }
     }
 }
@@ -155,7 +208,6 @@ fun MainScreen(
 @Composable
 private fun TopBar(
     isActive:      Boolean,
-    enabledStreams: Set<AudioStream>,
     onToggle:      () -> Unit,
     modifier:      Modifier = Modifier,
 ) {
@@ -172,10 +224,9 @@ private fun TopBar(
         label         = "pillScale",
     )
 
-    // Build a short subtitle: streams in declaration order when active, state label when not
+    // Build a short subtitle
     val subtitle = if (isActive) {
-        enabledStreams.sortedBy { it.ordinal }.joinToString(" · ") { it.label }
-            .ifEmpty { "Boosting audio" }
+        "Boosting audio"
     } else {
         "Inactive"
     }
@@ -265,6 +316,8 @@ private fun BoostArcControl(
     // Display values — full range is 0–300%
     val boostPct = (animatedLevel * 300).toInt()
     val gainDb   = String.format("%.1f", animatedLevel * 20f)
+    
+    val haptic = LocalHapticFeedback.current
 
     Box(
         contentAlignment = Alignment.Center,
@@ -313,7 +366,20 @@ private fun BoostArcControl(
                                     raw > 0.97f            -> ceiling
                                     else                   -> raw
                                 }
-                                onBoostChange(snapped.coerceIn(0f, ceiling))
+                                
+                                // Snap to nearest 5% step (0.0166f)
+                                val stepSize = 0.0166667f
+                                val steppedRaw = Math.round(snapped / stepSize) * stepSize
+                                val finalValue = steppedRaw.coerceIn(0f, ceiling)
+                                
+                                if (Math.abs(finalValue - boostLevel) > 0.001f) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    // Trigger a heavier tick if we hit the limit
+                                    if (finalValue >= ceiling && boostLevel < ceiling) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    }
+                                    onBoostChange(finalValue)
+                                }
                             }
                         }
                         isDragging = false
@@ -463,42 +529,7 @@ private fun BoostArcControl(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Stream chips
-// ─────────────────────────────────────────────────────────────────────────────
-
-@Composable
-private fun StreamChips(
-    enabledStreams: Set<AudioStream>,
-    onToggle:      (AudioStream, Boolean) -> Unit,
-) {
-    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text     = "Boost applies to",
-            style    = MaterialTheme.typography.labelMedium,
-            color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-            modifier = Modifier.padding(bottom = 10.dp),
-        )
-        Row(
-            modifier              = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-        ) {
-            AudioStream.entries.forEach { stream ->
-                val selected = stream in enabledStreams
-                FilterChip(
-                    selected = selected,
-                    onClick  = { onToggle(stream, !selected) },
-                    label    = { Text(stream.label, style = MaterialTheme.typography.labelLarge) },
-                    shape    = RoundedCornerShape(50),
-                    colors   = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        selectedLabelColor     = MaterialTheme.colorScheme.onPrimaryContainer,
-                    ),
-                )
-            }
-        }
-    }
-}
+// Removed StreamChips
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Inline control card
@@ -509,10 +540,12 @@ private fun ControlCard(
     bassBoostEnabled:     Boolean,
     safetyLimiterEnabled: Boolean,
     autoBoostOnHeadphone: Boolean,
+    notificationEnabled:  Boolean,
     currentTheme:         String,
     onBassBoostToggle:    (Boolean) -> Unit,
     onLimiterToggle:      (Boolean) -> Unit,
     onAutoBoostToggle:    (Boolean) -> Unit,
+    onNotificationToggle: (Boolean) -> Unit,
     onThemeChange:        (String) -> Unit,
 ) {
     Column(
@@ -533,6 +566,8 @@ private fun ControlCard(
         )
         Divider()
         CardToggleRow("Auto-boost on headphone", "Activates automatically on connect", autoBoostOnHeadphone, onAutoBoostToggle)
+        Divider()
+        CardToggleRow("Persistent Notification", "Required to keep boost active in background", notificationEnabled, onNotificationToggle)
         Divider()
         ThemeRow(current = currentTheme, onChange = onThemeChange)
     }

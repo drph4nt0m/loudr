@@ -24,8 +24,8 @@ android {
         applicationId   = "me.rhul.loudr"
         minSdk          = 28
         targetSdk       = 35
-        versionCode     = 1
-        versionName     = "1.0.0"
+        versionCode     = 9
+        versionName     = "1.0.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -81,7 +81,6 @@ android {
 kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
-        freeCompilerArgs.addAll("-Xcontext-receivers")
     }
 }
 
@@ -104,6 +103,7 @@ dependencies {
     implementation(libs.compose.ui.graphics)
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
+    implementation(libs.compose.material3.windowsizeclass)
     implementation(libs.compose.icons.extended)
     debugImplementation(libs.compose.ui.tooling)
 

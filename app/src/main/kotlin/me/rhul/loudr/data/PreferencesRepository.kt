@@ -22,13 +22,10 @@ object PreferenceKeys {
     val SAFETY_LIMITER_ENABLED     = booleanPreferencesKey("safety_limiter_enabled")
     val SAFETY_CEILING_DB          = floatPreferencesKey("safety_ceiling_db")
     val AUTO_BOOST_ON_HEADPHONE    = booleanPreferencesKey("auto_boost_on_headphone")
+    val NOTIFICATION_ENABLED       = booleanPreferencesKey("notification_enabled")
     val THEME                      = stringPreferencesKey("theme")
     val BASS_BOOST_ENABLED         = booleanPreferencesKey("bass_boost_enabled")
     val BASS_BOOST_LEVEL           = floatPreferencesKey("bass_boost_level")
-    val STREAM_MEDIA_ENABLED       = booleanPreferencesKey("stream_media_enabled")
-    val STREAM_CALL_ENABLED        = booleanPreferencesKey("stream_call_enabled")
-    val STREAM_NOTIFICATION_ENABLED = booleanPreferencesKey("stream_notification_enabled")
-    val STREAM_ALARM_ENABLED       = booleanPreferencesKey("stream_alarm_enabled")
     val FLOATING_OVERLAY_ENABLED   = booleanPreferencesKey("floating_overlay_enabled")
     val VISUALIZER_ENABLED         = booleanPreferencesKey("visualizer_enabled")
 }
@@ -55,13 +52,10 @@ class PreferencesRepository @Inject constructor(
     val safetyLimiterEnabled:      Flow<Boolean> = prefs.map { it[PreferenceKeys.SAFETY_LIMITER_ENABLED] ?: true }
     val safetyCeilingDb:           Flow<Float>   = prefs.map { it[PreferenceKeys.SAFETY_CEILING_DB] ?: 6f }
     val autoBoostOnHeadphone:      Flow<Boolean> = prefs.map { it[PreferenceKeys.AUTO_BOOST_ON_HEADPHONE] ?: false }
+    val notificationEnabled:       Flow<Boolean> = prefs.map { it[PreferenceKeys.NOTIFICATION_ENABLED] ?: true }
     val theme:                     Flow<String>  = prefs.map { it[PreferenceKeys.THEME] ?: "dynamic" }
     val bassBoostEnabled:          Flow<Boolean> = prefs.map { it[PreferenceKeys.BASS_BOOST_ENABLED] ?: false }
     val bassBoostLevel:            Flow<Float>   = prefs.map { it[PreferenceKeys.BASS_BOOST_LEVEL] ?: 0f }
-    val streamMediaEnabled:        Flow<Boolean> = prefs.map { it[PreferenceKeys.STREAM_MEDIA_ENABLED] ?: true }
-    val streamCallEnabled:         Flow<Boolean> = prefs.map { it[PreferenceKeys.STREAM_CALL_ENABLED] ?: false }
-    val streamNotificationEnabled: Flow<Boolean> = prefs.map { it[PreferenceKeys.STREAM_NOTIFICATION_ENABLED] ?: false }
-    val streamAlarmEnabled:        Flow<Boolean> = prefs.map { it[PreferenceKeys.STREAM_ALARM_ENABLED] ?: false }
     val floatingOverlayEnabled:    Flow<Boolean> = prefs.map { it[PreferenceKeys.FLOATING_OVERLAY_ENABLED] ?: false }
     val visualizerEnabled:         Flow<Boolean> = prefs.map { it[PreferenceKeys.VISUALIZER_ENABLED] ?: false }
 
@@ -74,13 +68,10 @@ class PreferencesRepository @Inject constructor(
     suspend fun setSafetyLimiterEnabled(enabled: Boolean) = dataStore.edit { it[PreferenceKeys.SAFETY_LIMITER_ENABLED] = enabled }
     suspend fun setSafetyCeilingDb(db: Float)           = dataStore.edit { it[PreferenceKeys.SAFETY_CEILING_DB] = db }
     suspend fun setAutoBoostOnHeadphone(enabled: Boolean) = dataStore.edit { it[PreferenceKeys.AUTO_BOOST_ON_HEADPHONE] = enabled }
+    suspend fun setNotificationEnabled(enabled: Boolean)  = dataStore.edit { it[PreferenceKeys.NOTIFICATION_ENABLED] = enabled }
     suspend fun setTheme(theme: String)                 = dataStore.edit { it[PreferenceKeys.THEME] = theme }
     suspend fun setBassBoostEnabled(enabled: Boolean)   = dataStore.edit { it[PreferenceKeys.BASS_BOOST_ENABLED] = enabled }
     suspend fun setBassBoostLevel(level: Float)         = dataStore.edit { it[PreferenceKeys.BASS_BOOST_LEVEL] = level }
-    suspend fun setStreamMediaEnabled(enabled: Boolean) = dataStore.edit { it[PreferenceKeys.STREAM_MEDIA_ENABLED] = enabled }
-    suspend fun setStreamCallEnabled(enabled: Boolean)  = dataStore.edit { it[PreferenceKeys.STREAM_CALL_ENABLED] = enabled }
-    suspend fun setStreamNotificationEnabled(enabled: Boolean) = dataStore.edit { it[PreferenceKeys.STREAM_NOTIFICATION_ENABLED] = enabled }
-    suspend fun setStreamAlarmEnabled(enabled: Boolean) = dataStore.edit { it[PreferenceKeys.STREAM_ALARM_ENABLED] = enabled }
     suspend fun setFloatingOverlayEnabled(enabled: Boolean) = dataStore.edit { it[PreferenceKeys.FLOATING_OVERLAY_ENABLED] = enabled }
     suspend fun setVisualizerEnabled(enabled: Boolean)  = dataStore.edit { it[PreferenceKeys.VISUALIZER_ENABLED] = enabled }
 }

@@ -60,23 +60,6 @@ class LoudnessEnhancerEngineTest {
     }
 
     @Test
-    fun `default enabled streams contains MEDIA only`() {
-        assertEquals(setOf(AudioStream.MEDIA), engine.enabledStreams.value)
-    }
-
-    @Test
-    fun `setStreamEnabled adds stream to enabled set`() = runTest {
-        engine.setStreamEnabled(AudioStream.CALL, true)
-        assertTrue(engine.enabledStreams.value.contains(AudioStream.CALL))
-    }
-
-    @Test
-    fun `setStreamEnabled removes stream from enabled set`() = runTest {
-        engine.setStreamEnabled(AudioStream.MEDIA, false)
-        assertFalse(engine.enabledStreams.value.contains(AudioStream.MEDIA))
-    }
-
-    @Test
     fun `setBoost delegates clamping to SafetyLimiter`() = runTest {
         engine.setBoost(0.9f)
         verify { safetyLimiter.clamp(0.9f) }
@@ -84,16 +67,23 @@ class LoudnessEnhancerEngineTest {
 
     @Test
     fun `detachFromSession resets currentSessionId to -1`() {
-        // Attach first (without a real audio session — just test state)
         engine.detachFromSession()
         assertEquals(-1, engine.currentSessionId.value)
     }
 
     @Test
     fun `attachToSession same id does not re-attach`() {
-        // Attaching to session -1 twice should not change state
+        // Detaching twice should be idempotent
         engine.detachFromSession()
         engine.detachFromSession()
+        assertEquals(-1, engine.currentSessionId.value)
+    }
+
+    @Test
+    fun `enable without session does not attach to global session 0`() = runTest {
+        // H-2: enabling before a real session is available must NOT fall back to session 0
+        engine.enable()
+        assertTrue(engine.isActive.value)
         assertEquals(-1, engine.currentSessionId.value)
     }
 }

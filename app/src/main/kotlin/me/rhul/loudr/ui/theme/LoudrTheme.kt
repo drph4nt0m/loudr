@@ -1,6 +1,8 @@
 package me.rhul.loudr.ui.theme
 
 import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -104,9 +106,16 @@ fun LoudrTheme(
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
-            val window = (view.context as Activity).window
-            WindowCompat.getInsetsController(window, view)
-                .isAppearanceLightStatusBars = !isDark && appTheme != AppTheme.AMOLED
+            var activityCtx = view.context
+            while (activityCtx is ContextWrapper) {
+                if (activityCtx is Activity) break
+                activityCtx = activityCtx.baseContext
+            }
+            val window = (activityCtx as? Activity)?.window
+            if (window != null) {
+                WindowCompat.getInsetsController(window, view)
+                    .isAppearanceLightStatusBars = !isDark && appTheme != AppTheme.AMOLED
+            }
         }
     }
 

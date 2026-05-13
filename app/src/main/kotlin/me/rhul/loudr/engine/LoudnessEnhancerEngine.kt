@@ -6,8 +6,10 @@ import me.rhul.loudr.safety.SafetyLimiter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.util.concurrent.locks.ReentrantLock
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.concurrent.withLock
 
 private const val TAG = "LoudnessEnhancerEngine"
 
@@ -17,8 +19,13 @@ private const val TAG = "LoudnessEnhancerEngine"
  * Maps the normalised [0.0, 1.0] boost level to a millibel gain in [0, MAX_GAIN_MB].
  * The gain ceiling is clamped by [SafetyLimiter] before being applied.
  *
- * A single [LoudnessEnhancer] instance is created per audio session and
- * released when [detachFromSession] is called or the session ends.
+ * Thread-safety: [lock] serialises all reads and writes to [enhancer] since
+ * [attachToSession] is called on the main thread (BroadcastReceiver) while
+ * [setBoost] / [enable] / [disable] run on Dispatchers.IO.
+ *
+ * Session 0 fallback removed (Bug H-2): the engine now waits for a real session ID.
+ * When [enable] is called before a session is available, [_isActive] is set to true
+ * and gain is applied automatically in [attachToSession].
  */
 @Singleton
 class LoudnessEnhancerEngine @Inject constructor(
@@ -32,15 +39,17 @@ class LoudnessEnhancerEngine @Inject constructor(
 
     private val _boostLevel     = MutableStateFlow(0f)
     private val _isActive       = MutableStateFlow(false)
-    private val _enabledStreams = MutableStateFlow(AudioStream.DEFAULT_ENABLED)
     private val _currentSession = MutableStateFlow(-1)
 
-    override val boostLevel:      StateFlow<Float>          = _boostLevel.asStateFlow()
-    override val isActive:        StateFlow<Boolean>         = _isActive.asStateFlow()
-    override val enabledStreams:   StateFlow<Set<AudioStream>> = _enabledStreams.asStateFlow()
-    override val currentSessionId: StateFlow<Int>            = _currentSession.asStateFlow()
+    override val boostLevel:       StateFlow<Float>   = _boostLevel.asStateFlow()
+    override val isActive:         StateFlow<Boolean>  = _isActive.asStateFlow()
+    override val currentSessionId: StateFlow<Int>      = _currentSession.asStateFlow()
 
-    /** Guarded by the caller — all mutations happen on Dispatchers.IO. */
+    /**
+     * Guards all [enhancer] reads and writes.
+     * Always acquired non-interruptibly; hold time is minimal (AudioEffect API calls only).
+     */
+    private val lock = ReentrantLock()
     private var enhancer: LoudnessEnhancer? = null
 
     // -------------------------------------------------------------------------
@@ -48,60 +57,56 @@ class LoudnessEnhancerEngine @Inject constructor(
     // -------------------------------------------------------------------------
 
     override suspend fun setBoost(level: Float) {
-        // Clamp through the safety limiter so _boostLevel never exceeds the active ceiling.
-        // This makes the arc slider physically stop at the ceiling, not just the audio output.
         val clamped = safetyLimiter.clamp(level.coerceIn(0f, 1f))
         _boostLevel.value = clamped
         applyGain(clamped)
     }
 
     override suspend fun enable() {
-        // Attach to the global session (0) if no specific session is active yet.
-        // AudioSessionMonitor will re-attach to the correct app session when detected.
-        if (_currentSession.value == -1) {
-            attachToSession(0)
-        }
         _isActive.value = true
-        applyGain(_boostLevel.value)
+        // Apply to existing session if available.
+        // If no session yet, applyGain will be triggered inside attachToSession
+        // because it checks _isActive.value.
+        if (_currentSession.value != -1) {
+            applyGain(_boostLevel.value)
+        }
         Log.d(TAG, "Engine enabled — session=${_currentSession.value} boost=${_boostLevel.value}")
     }
 
     override suspend fun disable() {
         _isActive.value = false
-        enhancer?.setEnabled(false)
-        Log.d(TAG, "Engine disabled")
-    }
-
-    override suspend fun setStreamEnabled(stream: AudioStream, enabled: Boolean) {
-        val current = _enabledStreams.value.toMutableSet()
-        if (enabled) current.add(stream) else current.remove(stream)
-        _enabledStreams.value = current
-        // Re-apply: if the affected stream is MEDIA (the primary session carrier),
-        // toggle the enhancer accordingly.
-        if (stream == AudioStream.MEDIA) {
-            if (enabled && _isActive.value) applyGain(_boostLevel.value)
-            else enhancer?.setEnabled(false)
+        lock.withLock {
+            try {
+                enhancer?.setEnabled(false)
+            } catch (ex: RuntimeException) {
+                Log.w(TAG, "Exception disabling enhancer", ex)
+            }
         }
+        Log.d(TAG, "Engine disabled")
     }
 
     override fun attachToSession(sessionId: Int) {
         if (sessionId == _currentSession.value) return
-        releaseEnhancer()
-        _currentSession.value = sessionId
-        try {
-            enhancer = LoudnessEnhancer(sessionId).also { e ->
-                e.setEnabled(_isActive.value)
-                if (_isActive.value) e.setTargetGain(toMillibels(_boostLevel.value))
+        lock.withLock {
+            releaseEnhancerLocked()
+            _currentSession.value = sessionId
+            try {
+                enhancer = LoudnessEnhancer(sessionId).also { e ->
+                    e.setEnabled(_isActive.value)
+                    if (_isActive.value) e.setTargetGain(toMillibels(_boostLevel.value))
+                }
+                Log.d(TAG, "Attached to session $sessionId")
+            } catch (ex: RuntimeException) {
+                Log.e(TAG, "Failed to attach LoudnessEnhancer to session $sessionId", ex)
             }
-            Log.d(TAG, "Attached to session $sessionId")
-        } catch (ex: RuntimeException) {
-            Log.e(TAG, "Failed to attach LoudnessEnhancer to session $sessionId", ex)
         }
     }
 
     override fun detachFromSession() {
-        releaseEnhancer()
-        _currentSession.value = -1
+        lock.withLock {
+            releaseEnhancerLocked()
+            _currentSession.value = -1
+        }
         Log.d(TAG, "Detached from session")
     }
 
@@ -110,29 +115,32 @@ class LoudnessEnhancerEngine @Inject constructor(
     // -------------------------------------------------------------------------
 
     private fun applyGain(normalised: Float) {
-        val enhancerRef = enhancer ?: return
         if (!_isActive.value) return
         val limitedNorm = safetyLimiter.clamp(normalised)
         val mB = toMillibels(limitedNorm)
-        try {
-            enhancerRef.setTargetGain(mB)
-            enhancerRef.setEnabled(true)
-            Log.d(TAG, "Gain applied: ${mB}mB (${(limitedNorm * 100).toInt()}%)")
-        } catch (ex: RuntimeException) {
-            Log.e(TAG, "Failed to apply gain", ex)
+        lock.withLock {
+            val e = enhancer ?: return
+            try {
+                e.setTargetGain(mB)
+                e.setEnabled(true)
+                Log.d(TAG, "Gain applied: ${mB}mB (${(limitedNorm * 100).toInt()}%)")
+            } catch (ex: RuntimeException) {
+                Log.e(TAG, "Failed to apply gain", ex)
+            }
         }
     }
 
     private fun toMillibels(normalised: Float): Int =
         (normalised * MAX_GAIN_MB).toInt()
 
-    private fun releaseEnhancer() {
+    /** Must be called with [lock] held. */
+    private fun releaseEnhancerLocked() {
+        val e = enhancer
+        enhancer = null
         try {
-            enhancer?.release()
+            e?.release()
         } catch (ex: RuntimeException) {
             Log.w(TAG, "Exception releasing LoudnessEnhancer", ex)
-        } finally {
-            enhancer = null
         }
     }
 }

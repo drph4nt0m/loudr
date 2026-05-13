@@ -19,9 +19,6 @@ interface AudioEngineRepository {
     /** Whether the boost engine is currently active. */
     val isActive: StateFlow<Boolean>
 
-    /** The set of [AudioStream]s on which boosting is currently enabled. */
-    val enabledStreams: StateFlow<Set<AudioStream>>
-
     /** Current audio session ID the engine is attached to, or -1 if detached. */
     val currentSessionId: StateFlow<Int>
 
@@ -36,12 +33,6 @@ interface AudioEngineRepository {
 
     /** Deactivate the boost engine and release AudioEffect resources. */
     suspend fun disable()
-
-    /**
-     * Toggle boosting on or off for a specific [stream].
-     * Changes take effect immediately without restarting the service.
-     */
-    suspend fun setStreamEnabled(stream: AudioStream, enabled: Boolean)
 
     /**
      * Attach the engine to a specific audio [sessionId].

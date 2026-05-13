@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import me.rhul.loudr.data.PreferencesRepository
 import me.rhul.loudr.engine.AudioEngineRepository
-import me.rhul.loudr.engine.AudioStream
 import me.rhul.loudr.engine.DynamicsProcessorEngine
 import me.rhul.loudr.safety.SafetyLimiter
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -20,12 +19,12 @@ data class MainUiState(
     // Boost engine state
     val boostLevel:           Float            = 0f,
     val isActive:             Boolean          = false,
-    val enabledStreams:        Set<AudioStream> = AudioStream.DEFAULT_ENABLED,
     val safetyEvent:          me.rhul.loudr.safety.SafetyEvent? = null,
     // Safety / audio settings
     val safetyLimiterEnabled: Boolean          = true,
     val bassBoostEnabled:     Boolean          = false,
     val autoBoostOnHeadphone: Boolean          = false,
+    val notificationEnabled:  Boolean          = true,
     // Appearance
     val theme:                String           = "dynamic",
 )
@@ -36,6 +35,7 @@ class MainViewModel @Inject constructor(
     private val bassEngine:  DynamicsProcessorEngine,
     private val prefs:       PreferencesRepository,
     private val safety:      SafetyLimiter,
+    private val boostController: me.rhul.loudr.engine.BoostController,
 ) : ViewModel() {
 
     val uiState: StateFlow<MainUiState> = combine(
@@ -43,14 +43,12 @@ class MainViewModel @Inject constructor(
         combine(
             engine.boostLevel,
             engine.isActive,
-            engine.enabledStreams,
             safety.safetyEvents,
             safety.limiterEnabled,
-        ) { boostLevel, isActive, streams, safetyEvent, limiterEnabled ->
+        ) { boostLevel, isActive, safetyEvent, limiterEnabled ->
             MainUiState(
                 boostLevel           = boostLevel,
                 isActive             = isActive,
-                enabledStreams        = streams,
                 safetyEvent          = safetyEvent,
                 safetyLimiterEnabled = limiterEnabled,
             )
@@ -58,11 +56,13 @@ class MainViewModel @Inject constructor(
         // Group 2: prefs-based settings
         prefs.bassBoostEnabled,
         prefs.autoBoostOnHeadphone,
+        prefs.notificationEnabled,
         prefs.theme,
-    ) { partial, bassEnabled, autoBoost, theme ->
+    ) { partial, bassEnabled, autoBoost, notifEnabled, theme ->
         partial.copy(
             bassBoostEnabled     = bassEnabled,
             autoBoostOnHeadphone = autoBoost,
+            notificationEnabled  = notifEnabled,
             theme                = theme,
         )
     }.stateIn(
@@ -79,22 +79,18 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             val level        = prefs.boostLevel.first()
             val enabled      = prefs.isEnabled.first()
-            val mediaEnabled = prefs.streamMediaEnabled.first()
-            val callEnabled  = prefs.streamCallEnabled.first()
-            val notifEnabled = prefs.streamNotificationEnabled.first()
-            val alarmEnabled = prefs.streamAlarmEnabled.first()
             val limiterOn    = prefs.safetyLimiterEnabled.first()
             val bassEnabled  = prefs.bassBoostEnabled.first()
             val bassLevel    = prefs.bassBoostLevel.first()
 
             safety.setLimiterEnabled(limiterOn)
 
-            engine.setStreamEnabled(AudioStream.MEDIA,        mediaEnabled)
-            engine.setStreamEnabled(AudioStream.CALL,         callEnabled)
-            engine.setStreamEnabled(AudioStream.NOTIFICATION, notifEnabled)
-            engine.setStreamEnabled(AudioStream.ALARM,        alarmEnabled)
-
             engine.setBoost(level)
+            // H-6: If the stored level was above the active ceiling it was clamped;
+            // persist the corrected value so DataStore never holds a stale boosted level.
+            val stored = engine.boostLevel.value
+            if (stored != level) prefs.setBoostLevel(stored)
+
             if (enabled) engine.enable()
 
             if (bassEnabled) {
@@ -111,35 +107,17 @@ class MainViewModel @Inject constructor(
 
     fun setBoost(level: Float) {
         viewModelScope.launch {
-            engine.setBoost(level)
-            prefs.setBoostLevel(level)
-            safety.recordExposureTick(level)
+            boostController.setBoost(level)
         }
     }
 
     fun toggleActive() {
         viewModelScope.launch {
-            if (engine.isActive.value) {
-                engine.disable()
-                prefs.setEnabled(false)
-            } else {
-                engine.enable()
-                prefs.setEnabled(true)
-            }
+            boostController.toggleActive()
         }
     }
 
-    fun toggleStream(stream: AudioStream, enabled: Boolean) {
-        viewModelScope.launch {
-            engine.setStreamEnabled(stream, enabled)
-            when (stream) {
-                AudioStream.MEDIA        -> prefs.setStreamMediaEnabled(enabled)
-                AudioStream.CALL         -> prefs.setStreamCallEnabled(enabled)
-                AudioStream.NOTIFICATION -> prefs.setStreamNotificationEnabled(enabled)
-                AudioStream.ALARM        -> prefs.setStreamAlarmEnabled(enabled)
-            }
-        }
-    }
+    // Removed toggleStream
 
     fun dismissSafetyEvent() {
         safety.clearEvent()
@@ -157,9 +135,10 @@ class MainViewModel @Inject constructor(
         safety.setLimiterEnabled(enabled)
         viewModelScope.launch {
             prefs.setSafetyLimiterEnabled(enabled)
-            // Re-clamp boost level to new ceiling immediately
-            val clamped = engine.boostLevel.value
-            engine.setBoost(clamped)
+            // Re-clamp the current boost to the new ceiling and persist the result.
+            // H-1: Without persisting here, a value above the re-enabled ceiling
+            // would remain in DataStore and be restored incorrectly on next launch.
+            engine.setBoost(engine.boostLevel.value)
             prefs.setBoostLevel(engine.boostLevel.value)
         }
     }
@@ -180,6 +159,10 @@ class MainViewModel @Inject constructor(
 
     fun setAutoBoostOnHeadphone(enabled: Boolean) {
         viewModelScope.launch { prefs.setAutoBoostOnHeadphone(enabled) }
+    }
+
+    fun setNotificationEnabled(enabled: Boolean) {
+        viewModelScope.launch { prefs.setNotificationEnabled(enabled) }
     }
 
     fun setTheme(theme: String) {
