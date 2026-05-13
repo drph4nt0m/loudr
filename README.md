@@ -1,10 +1,11 @@
-# Loudr
+<h1><img src="store/play_store_icon_512.png" width="32" alt="" style="vertical-align:middle;border-radius:20%" /> Loudr</h1>
 
 Volume booster for Android — up to +300%
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-coral.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Platform](https://img.shields.io/badge/Platform-Android%208.0%2B-brightgreen.svg)](https://developer.android.com)
 [![No telemetry](https://img.shields.io/badge/Telemetry-None-blue.svg)](#privacy)
+[![CI](https://github.com/drph4nt0m/loudr/actions/workflows/ci.yml/badge.svg)](https://github.com/drph4nt0m/loudr/actions/workflows/ci.yml)
 
 ---
 
@@ -97,16 +98,29 @@ keytool -genkey -v \
 app/src/main/kotlin/me/rhul/loudr/
 ├── LoudrApp.kt                  # Application entry point (Hilt)
 ├── data/                        # DataStore repository
-├── di/                          # Hilt modules
+├── di/                          # Hilt modules (Hilt + AppScope)
 ├── engine/                      # Audio boost engine + session monitor
-├── safety/                      # Safety limiter logic
-├── service/                     # Foreground service
+├── safety/                      # Hearing-safety limiter
+├── service/                     # Foreground boost service
 ├── tile/                        # Quick Settings tile
 ├── ui/
 │   ├── main/                    # Main screen + ViewModel
 │   └── theme/                   # Colour palette + typography
-└── widget/                      # Home screen widget
+└── widget/                      # Home screen widgets (toggle + boost pill)
+
+store/                           # Play Store marketing assets (not build inputs)
+release.sh                       # Release helper (bump, build, tag, push)
 ```
+
+## Store assets
+
+Play Store marketing files live in [`store/`](store/):
+
+| File | Purpose |
+|------|---------|
+| `store/play_store_icon_512.png` | App icon (512×512 px) |
+| `store/feature_graphic_1024.png` | Feature graphic (1024×500 px) |
+| `store/feature_graphic.svg` | Feature graphic source (editable SVG) |
 
 ## License
 
