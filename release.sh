@@ -12,6 +12,9 @@
 #   --no-build                → skip the bundleRelease step
 #   --no-tag                  → skip creating a git tag
 #   --no-push                 → skip git push
+#   --upload                  → upload AAB to Play Console after build
+#   --track=<track>           → Play track: internal (default), beta, production
+#   --notes="<text>"          → "What's new" release notes (max 500 chars)
 # =============================================================================
 set -euo pipefail
 
@@ -33,15 +36,19 @@ BUNDLE_OUT="$SCRIPT_DIR/app/build/outputs/bundle/release/app-release.aab"
 [[ -f "$GRADLE" ]] || error "Cannot find app/build.gradle.kts — run this from the project root."
 
 # ── Parse flags ───────────────────────────────────────────────────────────────
-DO_BUILD=true; DO_TAG=true; DO_PUSH=true; BUMP_ARG=""
+DO_BUILD=true; DO_TAG=true; DO_PUSH=true; DO_UPLOAD=false
+UPLOAD_TRACK="internal"; RELEASE_NOTES=""; BUMP_ARG=""
 
 for arg in "$@"; do
   case "$arg" in
-    --no-build) DO_BUILD=false ;;
-    --no-tag)   DO_TAG=false ;;
-    --no-push)  DO_PUSH=false ;;
-    -*)         error "Unknown flag: $arg" ;;
-    *)          BUMP_ARG="$arg" ;;
+    --no-build)    DO_BUILD=false ;;
+    --no-tag)      DO_TAG=false ;;
+    --no-push)     DO_PUSH=false ;;
+    --upload)      DO_UPLOAD=true ;;
+    --track=*)     UPLOAD_TRACK="${arg#--track=}" ;;
+    --notes=*)     RELEASE_NOTES="${arg#--notes=}" ;;
+    -*)            error "Unknown flag: $arg" ;;
+    *)             BUMP_ARG="$arg" ;;
   esac
 done
 
@@ -97,9 +104,13 @@ echo ""
 echo -e "  ${BLD}Release plan:${RST}"
 echo -e "  versionName   ${CUR_NAME}  →  ${GRN}${NEW_NAME}${RST}"
 echo -e "  versionCode   ${CUR_CODE}  →  ${GRN}${NEW_CODE}${RST}"
-echo -e "  Build bundle  : $(${DO_BUILD} && echo yes || echo no)"
-echo -e "  Git tag       : $(${DO_TAG}   && echo "v${NEW_NAME}" || echo no)"
-echo -e "  Git push      : $(${DO_PUSH}  && echo yes || echo no)"
+echo -e "  Build bundle  : $(${DO_BUILD}   && echo yes || echo no)"
+echo -e "  Git tag       : $(${DO_TAG}     && echo "v${NEW_NAME}" || echo no)"
+echo -e "  Git push      : $(${DO_PUSH}    && echo yes || echo no)"
+echo -e "  Play upload   : $(${DO_UPLOAD}  && echo "${UPLOAD_TRACK}" || echo no)"
+if $DO_UPLOAD && [[ -n "$RELEASE_NOTES" ]]; then
+  echo -e "  Release notes : ${RELEASE_NOTES:0:60}$([ ${#RELEASE_NOTES} -gt 60 ] && echo '…')"
+fi
 echo ""
 read -rp "  Proceed? [Y/n]: " confirm
 confirm="${confirm:-Y}"
@@ -168,6 +179,48 @@ if $DO_TAG || $DO_PUSH; then
   fi
 fi
 
+# ── Upload to Play Console ────────────────────────────────────────────────────
+if $DO_UPLOAD; then
+  if ! $DO_BUILD || [[ ! -f "$BUNDLE_OUT" ]]; then
+    warn "--upload requires a built AAB — skipping (use without --no-build)."
+  elif ! command -v fastlane &>/dev/null; then
+    warn "fastlane not found — skipping upload. Install with: gem install fastlane"
+  else
+    header "Uploading to Play Console (track: ${UPLOAD_TRACK})…"
+
+    RELEASE_NAME="v${NEW_NAME} (${NEW_CODE})"
+
+    # Write changelog file for this versionCode
+    CHANGELOG_DIR="$SCRIPT_DIR/fastlane/metadata/android/en-US/changelogs"
+    mkdir -p "$CHANGELOG_DIR"
+    CHANGELOG_FILE="$CHANGELOG_DIR/${NEW_CODE}.txt"
+
+    if [[ -n "$RELEASE_NOTES" ]]; then
+      # Truncate to 500 chars (Play Console limit)
+      printf '%s' "${RELEASE_NOTES:0:500}" > "$CHANGELOG_FILE"
+    else
+      # Prompt interactively if --notes was not supplied
+      echo ""
+      echo -e "  ${BLD}What's new in ${RELEASE_NAME}?${RST}  (max 500 chars, blank to skip)"
+      read -rp "  Notes: " RELEASE_NOTES
+      if [[ -n "$RELEASE_NOTES" ]]; then
+        printf '%s' "${RELEASE_NOTES:0:500}" > "$CHANGELOG_FILE"
+      else
+        rm -f "$CHANGELOG_FILE"  # no file → fastlane skips changelog
+      fi
+    fi
+
+    if fastlane deploy_internal \
+         aab:"$BUNDLE_OUT" \
+         release_name:"$RELEASE_NAME" \
+         track:"$UPLOAD_TRACK" 2>&1 | tail -30; then
+      success "Uploaded to Play Console — ${UPLOAD_TRACK} track as \"${RELEASE_NAME}\""
+    else
+      warn "fastlane upload failed — AAB is still at: $BUNDLE_OUT"
+    fi
+  fi
+fi
+
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${BLD}${GRN}═══════════════════════════════════════${RST}"
@@ -175,5 +228,8 @@ echo -e "${BLD}${GRN}  Loudr ${NEW_NAME} ready to ship! 🚀${RST}"
 echo -e "${BLD}${GRN}═══════════════════════════════════════${RST}"
 if $DO_BUILD && [[ -f "$BUNDLE_OUT" ]]; then
   echo -e "  AAB: ${BLD}${BUNDLE_OUT}${RST}"
+fi
+if $DO_UPLOAD; then
+  echo -e "  Track: ${BLD}${UPLOAD_TRACK}${RST}"
 fi
 echo ""

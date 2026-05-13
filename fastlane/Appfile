@@ -1,0 +1,2 @@
+package_name("me.rhul.loudr")
+json_key_file(ENV["PLAY_SA_KEY"] || File.expand_path("./play-sa.json"))

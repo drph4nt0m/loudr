@@ -1,0 +1,60 @@
+# =============================================================================
+# Loudr Fastfile
+# Lanes:
+#   fastlane deploy_internal   → upload AAB to internal testing track
+#   fastlane promote_beta      → promote internal → open testing
+#   fastlane promote_prod      → promote open testing → production (10% rollout)
+# =============================================================================
+
+default_platform(:android)
+
+platform :android do
+
+  desc "Upload AAB to Play Console — internal testing track"
+  lane :deploy_internal do |options|
+    aab_path     = options[:aab]          || "app/build/outputs/bundle/release/app-release.aab"
+    release_name = options[:release_name] || ""
+    track        = options[:track]        || "internal"
+
+    upload_to_play_store(
+      track:                    track,
+      aab:                      aab_path,
+      release_name:             release_name,
+      skip_upload_apk:          true,
+      skip_upload_metadata:     false,  # upload changelogs
+      skip_upload_changelogs:   false,
+      skip_upload_images:       true,
+      skip_upload_screenshots:  true,
+      rollout:                  "1.0",  # 100% for internal
+    )
+  end
+
+  desc "Promote internal → closed testing (alpha)"
+  lane :promote_alpha do
+    upload_to_play_store(
+      track:            "internal",
+      track_promote_to: "alpha",
+      rollout:          "1.0",
+    )
+  end
+
+  desc "Promote closed testing → open testing (beta)"
+  lane :promote_beta do
+    upload_to_play_store(
+      track:            "alpha",
+      track_promote_to: "beta",
+      rollout:          "1.0",
+    )
+  end
+
+  desc "Promote open testing (beta) → production (10% staged rollout)"
+  lane :promote_prod do |options|
+    rollout = options[:rollout] || "0.1"
+    upload_to_play_store(
+      track:            "beta",
+      track_promote_to: "production",
+      rollout:          rollout,
+    )
+  end
+
+end
