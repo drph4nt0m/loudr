@@ -18,6 +18,14 @@
 # =============================================================================
 set -euo pipefail
 
+# Ensure local gem bin is in PATH for fastlane
+if command -v ruby &> /dev/null; then
+  GEM_BIN="$(ruby -e 'puts Gem.user_dir')/bin"
+  if [[ -d "$GEM_BIN" ]]; then
+    export PATH="$GEM_BIN:$PATH"
+  fi
+fi
+
 # ── Colours ──────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GRN='\033[0;32m'; YLW='\033[0;33m'
 BLU='\033[0;34m'; CYN='\033[0;36m'; BLD='\033[1m'; RST='\033[0m'
@@ -88,16 +96,20 @@ if [[ -z "$BUMP_ARG" ]]; then
 fi
 
 case "$BUMP_ARG" in
-  patch) NEW_NAME="${V_MAJOR}.${V_MINOR}.$((V_PATCH + 1))" ;;
-  minor) NEW_NAME="${V_MAJOR}.$((V_MINOR + 1)).0" ;;
-  major) NEW_NAME="$((V_MAJOR + 1)).0.0" ;;
+  none)  NEW_NAME="$CUR_NAME"
+         NEW_CODE="$CUR_CODE" ;;
+  patch) NEW_NAME="${V_MAJOR}.${V_MINOR}.$((V_PATCH + 1))"
+         NEW_CODE=$((CUR_CODE + 1)) ;;
+  minor) NEW_NAME="${V_MAJOR}.$((V_MINOR + 1)).0"
+         NEW_CODE=$((CUR_CODE + 1)) ;;
+  major) NEW_NAME="$((V_MAJOR + 1)).0.0"
+         NEW_CODE=$((CUR_CODE + 1)) ;;
   [0-9]*.[0-9]*.[0-9]*)
     NEW_NAME="$BUMP_ARG"
+    NEW_CODE=$((CUR_CODE + 1))
     ;;
-  *) error "Invalid version argument: '$BUMP_ARG'. Use patch/minor/major or X.Y.Z" ;;
+  *) error "Invalid version argument: '$BUMP_ARG'. Use patch/minor/major, X.Y.Z, or none" ;;
 esac
-
-NEW_CODE=$((CUR_CODE + 1))
 
 # ── Confirm ───────────────────────────────────────────────────────────────────
 echo ""
@@ -117,22 +129,24 @@ confirm="${confirm:-Y}"
 [[ "$confirm" =~ ^[Yy]$ ]] || { warn "Aborted."; exit 0; }
 
 # ── Apply version bump ────────────────────────────────────────────────────────
-header "Updating build.gradle.kts…"
+if [[ "$BUMP_ARG" != "none" ]]; then
+  header "Updating build.gradle.kts…"
 
-# Use a temp file for safe in-place editing
-TMP=$(mktemp)
-sed \
-  -e "s/versionCode\s*=\s*${CUR_CODE}/versionCode     = ${NEW_CODE}/" \
-  -e "s/versionName\s*=\s*\"${CUR_NAME}\"/versionName     = \"${NEW_NAME}\"/" \
-  "$GRADLE" > "$TMP"
-mv "$TMP" "$GRADLE"
+  # Use a temp file for safe in-place editing
+  TMP=$(mktemp)
+  sed \
+    -e "s/versionCode\s*=\s*${CUR_CODE}/versionCode     = ${NEW_CODE}/" \
+    -e "s/versionName\s*=\s*\"${CUR_NAME}\"/versionName     = \"${NEW_NAME}\"/" \
+    "$GRADLE" > "$TMP"
+  mv "$TMP" "$GRADLE"
 
-# Verify
-VERIFY_CODE=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' "$GRADLE")
-VERIFY_NAME=$(grep -oP 'versionName\s*=\s*"\K[^"]+' "$GRADLE")
-[[ "$VERIFY_CODE" == "$NEW_CODE" && "$VERIFY_NAME" == "$NEW_NAME" ]] \
-  && success "build.gradle.kts updated to ${NEW_NAME} (${NEW_CODE})" \
-  || error "Version update failed — please check build.gradle.kts manually"
+  # Verify
+  VERIFY_CODE=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' "$GRADLE")
+  VERIFY_NAME=$(grep -oP 'versionName\s*=\s*"\K[^"]+' "$GRADLE")
+  [[ "$VERIFY_CODE" == "$NEW_CODE" && "$VERIFY_NAME" == "$NEW_NAME" ]] \
+    && success "build.gradle.kts updated to ${NEW_NAME} (${NEW_CODE})" \
+    || error "Version update failed — please check build.gradle.kts manually"
+fi
 
 # ── Build release bundle ──────────────────────────────────────────────────────
 if $DO_BUILD; then
@@ -181,8 +195,8 @@ fi
 
 # ── Upload to Play Console ────────────────────────────────────────────────────
 if $DO_UPLOAD; then
-  if ! $DO_BUILD || [[ ! -f "$BUNDLE_OUT" ]]; then
-    warn "--upload requires a built AAB — skipping (use without --no-build)."
+  if [[ ! -f "$BUNDLE_OUT" ]]; then
+    warn "--upload requires a built AAB — skipping."
   elif ! command -v fastlane &>/dev/null; then
     warn "fastlane not found — skipping upload. Install with: gem install fastlane"
   else
@@ -212,7 +226,6 @@ if $DO_UPLOAD; then
 
     if fastlane deploy_internal \
          aab:"$BUNDLE_OUT" \
-         release_name:"$RELEASE_NAME" \
          track:"$UPLOAD_TRACK" 2>&1 | tail -30; then
       success "Uploaded to Play Console — ${UPLOAD_TRACK} track as \"${RELEASE_NAME}\""
     else

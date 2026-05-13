@@ -80,6 +80,30 @@ keytool -genkey -v \
   -validity 10000
 ```
 
+### Play Console Automation
+
+Loudr's `release.sh` can automatically upload the built App Bundle to the Google Play Console internal testing track.
+
+**Prerequisites:**
+1. Install [fastlane](https://fastlane.tools/):
+   ```bash
+   gem install fastlane
+   ```
+2. **Ruby 3.4+ Note:** Ruby 3.4 removed several standard libraries. You must install them manually:
+   ```bash
+   gem install erb base64 logger
+   ```
+3. **Google Play API Access:**
+   - Go to Google Cloud Console, create a project, and enable the **Google Play Android Developer API**.
+   - Create a Service Account (Role: Service Account User) and download the JSON key.
+   - Save the key file as `play-sa.json` in the root of the repository (it is gitignored).
+   - In Google Play Console → Users and permissions, invite the service account email and grant it **Release Manager** permissions (including "Release apps to testing tracks").
+
+Once configured, the release script will automatically push to internal testing:
+```bash
+./release.sh patch --upload
+```
+
 ## Tech stack
 
 | Layer | Technology |

@@ -13,13 +13,11 @@ platform :android do
   desc "Upload AAB to Play Console — internal testing track"
   lane :deploy_internal do |options|
     aab_path     = options[:aab]          || "app/build/outputs/bundle/release/app-release.aab"
-    release_name = options[:release_name] || ""
     track        = options[:track]        || "internal"
 
     upload_to_play_store(
       track:                    track,
       aab:                      aab_path,
-      release_name:             release_name,
       skip_upload_apk:          true,
       skip_upload_metadata:     false,  # upload changelogs
       skip_upload_changelogs:   false,
