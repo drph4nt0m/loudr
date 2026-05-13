@@ -176,19 +176,29 @@ fi
 if $DO_TAG || $DO_PUSH; then
   TAG="v${NEW_NAME}"
 
-  # Stage the version bump
-  git -C "$SCRIPT_DIR" add app/build.gradle.kts
-  git -C "$SCRIPT_DIR" commit -m "chore: bump version to ${NEW_NAME} (${NEW_CODE})" \
-    && success "Committed version bump"
+  # Stage the version bump if there are changes
+  if git -C "$SCRIPT_DIR" diff --cached --quiet app/build.gradle.kts && git -C "$SCRIPT_DIR" diff --quiet app/build.gradle.kts; then
+    info "No version changes to commit."
+  else
+    git -C "$SCRIPT_DIR" add app/build.gradle.kts
+    git -C "$SCRIPT_DIR" commit -m "chore: bump version to ${NEW_NAME} (${NEW_CODE})" || error "Failed to commit version bump"
+    success "Committed version bump"
+  fi
 
   if $DO_TAG; then
-    git -C "$SCRIPT_DIR" tag -a "$TAG" -m "Release ${TAG}"
-    success "Created tag ${TAG}"
+    if git -C "$SCRIPT_DIR" rev-parse "$TAG" >/dev/null 2>&1; then
+      warn "Tag $TAG already exists — skipping tag creation."
+    else
+      git -C "$SCRIPT_DIR" tag -a "$TAG" -m "Release ${TAG}" || error "Failed to create tag $TAG"
+      success "Created tag ${TAG}"
+    fi
   fi
 
   if $DO_PUSH; then
-    git -C "$SCRIPT_DIR" push
-    $DO_TAG && git -C "$SCRIPT_DIR" push origin "$TAG"
+    git -C "$SCRIPT_DIR" push || error "Failed to push to remote"
+    if $DO_TAG; then
+      git -C "$SCRIPT_DIR" push origin "$TAG" || error "Failed to push tag $TAG"
+    fi
     success "Pushed to remote"
   fi
 fi
@@ -196,9 +206,9 @@ fi
 # ── Upload to Play Console ────────────────────────────────────────────────────
 if $DO_UPLOAD; then
   if [[ ! -f "$BUNDLE_OUT" ]]; then
-    warn "--upload requires a built AAB — skipping."
+    error "--upload requires a built AAB — cannot proceed. Run without --no-build or build it first."
   elif ! command -v fastlane &>/dev/null; then
-    warn "fastlane not found — skipping upload. Install with: gem install fastlane"
+    error "fastlane not found — cannot proceed. Install with: gem install fastlane"
   else
     header "Uploading to Play Console (track: ${UPLOAD_TRACK})…"
 
@@ -226,10 +236,10 @@ if $DO_UPLOAD; then
 
     if fastlane deploy_internal \
          aab:"$BUNDLE_OUT" \
-         track:"$UPLOAD_TRACK" 2>&1 | tail -30; then
+         track:"$UPLOAD_TRACK"; then
       success "Uploaded to Play Console — ${UPLOAD_TRACK} track as \"${RELEASE_NAME}\""
     else
-      warn "fastlane upload failed — AAB is still at: $BUNDLE_OUT"
+      error "fastlane upload failed — AAB is still at: $BUNDLE_OUT"
     fi
   fi
 fi
