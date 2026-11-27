@@ -18,14 +18,14 @@ val localProps = Properties().apply {
 
 android {
     namespace   = "me.rhul.loudr"
-    compileSdk  = 35
+    compileSdk  = 36
 
     defaultConfig {
         applicationId   = "me.rhul.loudr"
         minSdk          = 28
-        targetSdk       = 35
-        versionCode     = 13
-        versionName     = "1.0.12"
+        targetSdk       = 36
+        versionCode     = 14
+        versionName     = "1.0.13"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
