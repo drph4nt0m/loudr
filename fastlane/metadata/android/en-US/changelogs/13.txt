@@ -1,0 +1,5 @@
+- Fixed Bass Boost applying audible low-frequency gain and syncing cleanly with boost on/off
+- Fixed dragging the boost dial back to 0% and added tap-to-set support
+- Fixed auto-boost on wired headset & Bluetooth connect and safe pause on disconnect
+- Fixed foreground service, Quick Settings tile (Android 9+), and widget cold-start bugs
+- Fixed Dark theme status bar icon contrast and scrollable portrait layout
