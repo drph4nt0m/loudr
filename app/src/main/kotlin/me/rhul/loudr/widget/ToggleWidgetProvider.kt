@@ -18,8 +18,9 @@ import me.rhul.loudr.service.ACTION_TOGGLE_BOOST
 import me.rhul.loudr.service.VolumeBoostService
 
 /**
- * L-5 fix: replaced @AndroidEntryPoint / @Inject field injection with
- * [EntryPointAccessors] to avoid UninitializedPropertyAccessException when
+ * 1x1 quick toggle home screen widget provider.
+ *
+ * Uses [EntryPointAccessors] to avoid UninitializedPropertyAccessException when
  * the OS instantiates this receiver before Hilt's application component is ready.
  */
 class ToggleWidgetProvider : AppWidgetProvider() {
@@ -50,12 +51,7 @@ class ToggleWidgetProvider : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         if (intent.action == ACTION_TOGGLE_BOOST) {
-            ContextCompat.startForegroundService(
-                context,
-                Intent(context, VolumeBoostService::class.java).apply {
-                    action = ACTION_TOGGLE_BOOST
-                },
-            )
+            VolumeBoostService.start(context, ACTION_TOGGLE_BOOST)
         }
     }
 
@@ -70,7 +66,9 @@ class ToggleWidgetProvider : AppWidgetProvider() {
                 action = ACTION_TOGGLE_BOOST
             }
             val togglePendingIntent = PendingIntent.getBroadcast(
-                context, appWidgetId, toggleIntent,
+                context,
+                appWidgetId,
+                toggleIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
 

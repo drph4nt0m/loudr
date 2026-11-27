@@ -1,40 +1,44 @@
 package me.rhul.loudr.engine
 
+import android.bluetooth.BluetoothA2dp
+import android.bluetooth.BluetoothHeadset
+import android.bluetooth.BluetoothProfile
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.media.AudioManager
 import android.util.Log
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
-import me.rhul.loudr.data.PreferencesRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import me.rhul.loudr.di.ApplicationScope
 
 private const val TAG = "AudioSessionMonitor"
 
 /**
- * Listens for system audio events and drives [AudioEngineRepository] session
- * attachment / detachment accordingly.
+ * Dynamically registered receiver (owned by [me.rhul.loudr.service.VolumeBoostService])
+ * that listens for wired headset and Bluetooth audio connection changes and delegates
+ * to [BoostController].
  *
- * Uses [EntryPointAccessors] instead of @AndroidEntryPoint / @Inject to safely
- * retrieve dependencies. Static BroadcastReceivers declared in the manifest can
- * be instantiated by the OS before the Hilt application component is ready on
- * some OEM ROMs and Android 12+ background-restriction paths, causing
- * UninitializedPropertyAccessException with field injection (Bug C-3).
+ * Dynamic registration is required because [AudioManager.ACTION_HEADSET_PLUG] is
+ * delivered only to dynamically registered receivers (FLAG_RECEIVER_REGISTERED_ONLY),
+ * and implicit Bluetooth broadcasts are restricted for manifest receivers on API 26+.
  *
- * H-3 fix: headset reconnect now respects the [PreferencesRepository.autoBoostOnHeadphone]
- * preference before re-attaching the engine.
+ * Uses [goAsync] + [@ApplicationScope] instead of `runBlocking` so DataStore reads
+ * never block the main thread.
  */
 class AudioSessionMonitor : BroadcastReceiver() {
 
     @EntryPoint
     @InstallIn(SingletonComponent::class)
     interface AudioSessionMonitorEntryPoint {
-        fun engine(): AudioEngineRepository
-        fun prefs(): PreferencesRepository
+        fun boostController(): BoostController
+        @ApplicationScope
+        fun appScope(): CoroutineScope
     }
 
     private fun deps(context: Context): AudioSessionMonitorEntryPoint =
@@ -44,91 +48,56 @@ class AudioSessionMonitor : BroadcastReceiver() {
         )
 
     override fun onReceive(context: Context, intent: Intent) {
-        val engine = deps(context).engine()
-        when (intent.action) {
-            AudioManager.ACTION_HEADSET_PLUG ->
-                handleHeadsetPlug(context, intent, engine)
+        // Ignore the initial sticky broadcast fired immediately upon dynamic registration
+        // so starting the service does not spuriously connect/disconnect the audio engine.
+        if (isInitialStickyBroadcast) return
 
-            android.bluetooth.BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED ->
-                handleBluetoothA2dp(context, intent, engine)
-
-            android.bluetooth.BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED ->
-                handleBluetoothHeadset(context, intent, engine)
-
-            else -> Log.w(TAG, "Unhandled action: ${intent.action}")
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
-
-    /** Returns true when the user has opted into auto-boost on headphone connect. */
-    private fun isAutoBoostEnabled(context: Context): Boolean =
-        runBlocking { deps(context).prefs().autoBoostOnHeadphone.first() }
-
-    private fun handleHeadsetPlug(context: Context, intent: Intent, engine: AudioEngineRepository) {
-        val state = intent.getIntExtra("state", -1)
-        when (state) {
-            1 -> {
-                if (!isAutoBoostEnabled(context)) {
-                    Log.d(TAG, "Wired headset connected — auto-boost disabled, skipping re-attach")
-                    return
-                }
-                val sessionId = engine.currentSessionId.value
-                if (sessionId != -1) {
-                    engine.attachToSession(sessionId)
-                    Log.d(TAG, "Wired headset connected — re-attached to session $sessionId")
-                }
+        val isConnected: Boolean? = when (intent.action) {
+            AudioManager.ACTION_HEADSET_PLUG -> when (intent.getIntExtra("state", -1)) {
+                1    -> true
+                0    -> false
+                else -> null
             }
-            0 -> {
-                engine.detachFromSession()
-                Log.d(TAG, "Wired headset disconnected — engine detached")
+
+            BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED,
+            BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED -> when (
+                intent.getIntExtra(BluetoothProfile.EXTRA_STATE, -1)
+            ) {
+                BluetoothProfile.STATE_CONNECTED    -> true
+                BluetoothProfile.STATE_DISCONNECTED -> false
+                else                                -> null
+            }
+
+            else -> {
+                Log.w(TAG, "Unhandled action: ${intent.action}")
+                null
             }
         }
-    }
 
-    private fun handleBluetoothA2dp(context: Context, intent: Intent, engine: AudioEngineRepository) {
-        val state = intent.getIntExtra(
-            android.bluetooth.BluetoothProfile.EXTRA_STATE,
-            android.bluetooth.BluetoothProfile.STATE_DISCONNECTED,
-        )
-        when (state) {
-            android.bluetooth.BluetoothProfile.STATE_CONNECTED -> {
-                if (!isAutoBoostEnabled(context)) {
-                    Log.d(TAG, "BT A2DP connected — auto-boost disabled, skipping re-attach")
-                    return
+        if (isConnected == null) return
+
+        val entryPoint = deps(context)
+        val pendingResult = goAsync()
+        entryPoint.appScope().launch {
+            try {
+                if (isConnected) {
+                    Log.d(TAG, "Audio device connected (${intent.action})")
+                    entryPoint.boostController().onAudioDeviceConnected()
+                } else {
+                    Log.d(TAG, "Audio device disconnected (${intent.action})")
+                    entryPoint.boostController().onAudioDeviceDisconnected()
                 }
-                val sessionId = engine.currentSessionId.value
-                if (sessionId != -1) engine.attachToSession(sessionId)
-                Log.d(TAG, "BT A2DP connected — re-attached to session $sessionId")
-            }
-            android.bluetooth.BluetoothProfile.STATE_DISCONNECTED -> {
-                engine.detachFromSession()
-                Log.d(TAG, "BT A2DP disconnected — engine detached")
+            } finally {
+                pendingResult.finish()
             }
         }
     }
 
-    private fun handleBluetoothHeadset(context: Context, intent: Intent, engine: AudioEngineRepository) {
-        val state = intent.getIntExtra(
-            android.bluetooth.BluetoothProfile.EXTRA_STATE,
-            android.bluetooth.BluetoothProfile.STATE_DISCONNECTED,
-        )
-        when (state) {
-            android.bluetooth.BluetoothProfile.STATE_CONNECTED -> {
-                if (!isAutoBoostEnabled(context)) {
-                    Log.d(TAG, "BT Headset connected — auto-boost disabled, skipping re-attach")
-                    return
-                }
-                val sessionId = engine.currentSessionId.value
-                if (sessionId != -1) engine.attachToSession(sessionId)
-                Log.d(TAG, "BT Headset connected — re-attached to session $sessionId")
-            }
-            android.bluetooth.BluetoothProfile.STATE_DISCONNECTED -> {
-                engine.detachFromSession()
-                Log.d(TAG, "BT Headset disconnected — engine detached")
-            }
+    companion object {
+        fun intentFilter(): IntentFilter = IntentFilter().apply {
+            addAction(AudioManager.ACTION_HEADSET_PLUG)
+            addAction(BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED)
+            addAction(BluetoothHeadset.ACTION_CONNECTION_STATE_CHANGED)
         }
     }
 }

@@ -1,11 +1,11 @@
 package me.rhul.loudr.engine
 
 import android.media.audiofx.DynamicsProcessing
-import android.os.Build
 import android.util.Log
-import androidx.annotation.RequiresApi
+import java.util.concurrent.locks.ReentrantLock
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.concurrent.withLock
 
 private const val TAG = "DynamicsProcessorEngine"
 
@@ -14,26 +14,28 @@ private const val TAG = "DynamicsProcessorEngine"
  *
  * Only a single low-frequency gain stage is configured — keeping it simple
  * and avoiding the complexity of a full multi-band EQ. The post-stage
- * compressor prevents clipping on cheaper speakers at high gain levels.
+ * limiter prevents clipping on cheaper speakers at high gain levels.
  *
- * This engine is independent of [LoudnessEnhancerEngine] and is only
- * activated when the user enables bass boost in Settings.
+ * Thread-safety: [lock] serialises all [processor] lifecycle and parameter calls.
  */
 @Singleton
-@RequiresApi(Build.VERSION_CODES.P)
 class DynamicsProcessorEngine @Inject constructor() {
 
     companion object {
-        private const val BASS_CUTOFF_HZ    = 200f   // Low-band upper bound
-        private const val MAX_BASS_GAIN_DB  = 10f    // +10 dB max bass boost
+        private const val BASS_CUTOFF_HZ          = 200f   // Low-band upper bound
+        private const val MAX_BASS_GAIN_DB        = 10f    // +10 dB max bass boost
         private const val COMPRESSOR_THRESHOLD_DB = -6f
-        private const val COMPRESSOR_RATIO   = 4f
+        private const val COMPRESSOR_RATIO        = 4f
+
+        /** Default normalised bass boost level (+6 dB) when the user toggles Bass Boost on. */
+        const val DEFAULT_BASS_LEVEL              = 0.6f
     }
 
+    private val lock = ReentrantLock()
     private var processor: DynamicsProcessing? = null
     private var currentSessionId: Int = -1
     private var isEnabled: Boolean = false
-    private var currentLevel: Float = 0f  // normalised [0.0, 1.0]
+    private var currentLevel: Float = DEFAULT_BASS_LEVEL  // normalised [0.0, 1.0]
 
     // -------------------------------------------------------------------------
     // Public API
@@ -41,43 +43,59 @@ class DynamicsProcessorEngine @Inject constructor() {
 
     /** Attach to an audio [sessionId] and configure the processing chain. */
     fun attachToSession(sessionId: Int) {
-        if (sessionId == currentSessionId) return
-        release()
-        currentSessionId = sessionId
-        buildProcessor(sessionId)
-        Log.d(TAG, "DynamicsProcessor attached to session $sessionId")
+        lock.withLock {
+            if (sessionId == currentSessionId && processor != null) return
+            releaseLocked()
+            val built = buildProcessorLocked(sessionId)
+            processor = built
+            currentSessionId = if (built != null) sessionId else -1
+            if (built != null) {
+                Log.d(TAG, "DynamicsProcessor attached to session $sessionId")
+            }
+        }
     }
 
     /** Detach and release all resources. */
     fun detachFromSession() {
-        release()
-        currentSessionId = -1
+        lock.withLock {
+            releaseLocked()
+            currentSessionId = -1
+        }
     }
 
     /** Apply a normalised bass boost [level] in [0.0, 1.0]. */
     fun setBassBoost(level: Float) {
-        currentLevel = level.coerceIn(0f, 1f)
-        applyBassGain()
+        lock.withLock {
+            currentLevel = level.coerceIn(0f, 1f)
+            applyBassGainLocked()
+        }
     }
 
     /** Enable or disable the bass boost stage without changing the level. */
     fun setEnabled(enabled: Boolean) {
-        isEnabled = enabled
-        processor?.setEnabled(enabled)
-        if (enabled) applyBassGain()
+        lock.withLock {
+            isEnabled = enabled
+            if (enabled) applyBassGainLocked()
+            try {
+                processor?.setEnabled(enabled)
+            } catch (ex: RuntimeException) {
+                Log.w(TAG, "Failed to set DynamicsProcessing enabled=$enabled", ex)
+            }
+        }
     }
 
     // -------------------------------------------------------------------------
-    // Internal
+    // Internal (caller must hold [lock])
     // -------------------------------------------------------------------------
 
-    private fun buildProcessor(sessionId: Int) {
+    private fun buildProcessorLocked(sessionId: Int): DynamicsProcessing? {
         // Try stereo first; fall back to mono if the session only has one channel.
-        processor = buildProcessorWithChannels(sessionId, 2)
+        val built = buildProcessorWithChannels(sessionId, 2)
             ?: buildProcessorWithChannels(sessionId, 1)
-        if (processor == null) {
+        if (built == null) {
             Log.e(TAG, "Failed to build DynamicsProcessing for session $sessionId (tried 2ch and 1ch)")
         }
+        return built
     }
 
     private fun buildProcessorWithChannels(sessionId: Int, channelCount: Int): DynamicsProcessing? {
@@ -95,10 +113,11 @@ class DynamicsProcessorEngine @Inject constructor() {
 
         return try {
             DynamicsProcessing(0, sessionId, config).also { dp ->
+                val initialGainDb = if (isEnabled) currentLevel * MAX_BASS_GAIN_DB else 0f
                 val band = DynamicsProcessing.EqBand(
                     /* isEnabled = */ true,
                     /* cutoffFrequency = */ BASS_CUTOFF_HZ,
-                    /* gain = */ 0f,
+                    /* gain = */ initialGainDb,
                 )
                 dp.setPostEqBandAllChannelsTo(0, band)
 
@@ -121,7 +140,7 @@ class DynamicsProcessorEngine @Inject constructor() {
         }
     }
 
-    private fun applyBassGain() {
+    private fun applyBassGainLocked() {
         val dp = processor ?: return
         if (!isEnabled) return
         val gainDb = currentLevel * MAX_BASS_GAIN_DB
@@ -134,7 +153,7 @@ class DynamicsProcessorEngine @Inject constructor() {
         }
     }
 
-    private fun release() {
+    private fun releaseLocked() {
         try {
             processor?.release()
         } catch (ex: RuntimeException) {

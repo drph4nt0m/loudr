@@ -3,7 +3,7 @@
 Volume booster for Android — up to +300%
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-coral.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Platform](https://img.shields.io/badge/Platform-Android%208.0%2B-brightgreen.svg)](https://developer.android.com)
+[![Platform](https://img.shields.io/badge/Platform-Android%209.0%2B-brightgreen.svg)](https://developer.android.com)
 [![No telemetry](https://img.shields.io/badge/Telemetry-None-blue.svg)](#privacy)
 [![CI](https://github.com/drph4nt0m/loudr/actions/workflows/ci.yml/badge.svg)](https://github.com/drph4nt0m/loudr/actions/workflows/ci.yml)
 
@@ -37,7 +37,7 @@ See [PRIVACY.md](PRIVACY.md) for the full policy.
 
 ## Requirements
 
-- Android 8.0 (API 28) or higher
+- Android 9.0 (API 28) or higher
 - No root required
 
 ## Building
@@ -99,9 +99,9 @@ Loudr's `release.sh` can automatically upload the built App Bundle to the Google
    - Save the key file as `play-sa.json` in the root of the repository (it is gitignored).
    - In Google Play Console → Users and permissions, invite the service account email and grant it **Release Manager** permissions (including "Release apps to testing tracks").
 
-Once configured, the release script will automatically push to internal testing:
+Once configured, the release script will automatically push to internal testing (pass `--no-upload` to skip):
 ```bash
-./release.sh patch --upload
+./release.sh patch
 ```
 
 ## Tech stack
@@ -113,7 +113,7 @@ Once configured, the release script will automatically push to internal testing:
 | DI | Hilt |
 | Persistence | AndroidX DataStore (Preferences) |
 | Audio | `LoudnessEnhancer` + `DynamicsProcessing` |
-| Min SDK | API 28 (Android 8.0) |
+| Min SDK | API 28 (Android 9.0) |
 | Build | Gradle 9 + AGP |
 
 ## Project structure

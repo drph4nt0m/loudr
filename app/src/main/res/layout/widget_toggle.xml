@@ -12,6 +12,6 @@
         android:layout_height="match_parent"
         android:layout_gravity="center"
         android:src="@drawable/ic_wave_sine"
-        android:contentDescription="Toggle Boost" />
+        android:contentDescription="@string/widget_toggle_description" />
 
 </FrameLayout>

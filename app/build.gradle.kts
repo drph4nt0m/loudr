@@ -32,12 +32,16 @@ android {
 
     signingConfigs {
         create("release") {
-            val path = localProps["KEYSTORE_PATH"] as? String
-            if (!path.isNullOrEmpty()) {
-                storeFile     = file(path)
-                storePassword = localProps["KEYSTORE_PASSWORD"] as? String
-                keyAlias      = localProps["KEY_ALIAS"] as? String
-                keyPassword   = localProps["KEY_PASSWORD"] as? String
+            val path = (localProps["KEYSTORE_PATH"] as? String)?.takeIf { it.isNotBlank() }
+                ?: System.getenv("KEYSTORE_PATH")?.takeIf { it.isNotBlank() }
+            if (path != null) {
+                storeFile     = rootProject.file(path)
+                storePassword = (localProps["KEYSTORE_PASSWORD"] as? String)
+                    ?: System.getenv("KEYSTORE_PASSWORD")
+                keyAlias      = (localProps["KEY_ALIAS"] as? String)
+                    ?: System.getenv("KEY_ALIAS")
+                keyPassword   = (localProps["KEY_PASSWORD"] as? String)
+                    ?: System.getenv("KEY_PASSWORD")
             }
         }
     }
@@ -67,6 +71,10 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
     }
 
     // Keep AudioEffect subclasses from being stripped by R8
@@ -104,11 +112,7 @@ dependencies {
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
     implementation(libs.compose.material3.windowsizeclass)
-    implementation(libs.compose.icons.extended)
     debugImplementation(libs.compose.ui.tooling)
-
-    // Navigation
-    implementation(libs.navigation.compose)
 
     // Hilt
     implementation(libs.hilt.android)
@@ -122,8 +126,8 @@ dependencies {
     testImplementation(libs.junit5.api)
     testImplementation(libs.junit5.params)
     testRuntimeOnly(libs.junit5.engine)
+    testRuntimeOnly(libs.junit.platform.launcher)
     testImplementation(libs.mockk)
-    testImplementation(libs.robolectric)
     testImplementation(libs.coroutines.test)
 
     // Instrumented tests

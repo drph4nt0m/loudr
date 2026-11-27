@@ -3,10 +3,17 @@
     <string name="qs_tile_label">Loudr · Volume Boost</string>
     <string name="notification_channel_name">Loudr Boost</string>
     <string name="notification_channel_description">Live boost status and quick controls</string>
-    <string name="boost_active">Boosting</string>
+    <string name="boost_active">Audio booster is running</string>
     <string name="boost_off">Paused</string>
-    <string name="action_toggle">Toggle boost</string>
-    <string name="action_boost_up">Increase boost</string>
-    <string name="action_boost_down">Decrease boost</string>
+    <string name="action_toggle">Tap Start to boost audio</string>
+    <string name="action_start">Start</string>
+    <string name="action_stop">Stop</string>
+    <string name="action_boost_up">+10%</string>
+    <string name="action_boost_down">−10%</string>
     <string name="widget_label">Loudr</string>
+    <string name="widget_title">LOUDR</string>
+    <string name="widget_off">OFF</string>
+    <string name="widget_minus">−</string>
+    <string name="widget_plus">+</string>
+    <string name="widget_toggle_description">Toggle Boost</string>
 </resources>

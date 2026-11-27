@@ -10,7 +10,7 @@
         android:id="@+id/widget_btn_down"
         android:layout_width="48dp"
         android:layout_height="48dp"
-        android:text="−"
+        android:text="@string/widget_minus"
         android:textColor="@android:color/white"
         android:textSize="24sp"
         android:gravity="center"
@@ -24,14 +24,14 @@
         android:orientation="vertical"
         android:gravity="center"
         android:background="?android:attr/selectableItemBackground">
-        
+
         <TextView
             android:id="@+id/widget_text_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="LOUDR"
+            android:text="@string/widget_title"
             android:textColor="#BBBBBB"
-            android:textSize="10sp"
+            android:textSize="11sp"
             android:letterSpacing="0.1"
             android:textStyle="bold" />
 
@@ -39,18 +39,18 @@
             android:id="@+id/widget_text_value"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="OFF"
+            android:text="@string/widget_off"
             android:textColor="@android:color/white"
             android:textSize="20sp"
             android:textStyle="bold" />
-            
+
     </LinearLayout>
 
     <TextView
         android:id="@+id/widget_btn_up"
         android:layout_width="48dp"
         android:layout_height="48dp"
-        android:text="+"
+        android:text="@string/widget_plus"
         android:textColor="@android:color/white"
         android:textSize="24sp"
         android:gravity="center"

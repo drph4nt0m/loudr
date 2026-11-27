@@ -113,8 +113,10 @@ fun LoudrTheme(
             }
             val window = (activityCtx as? Activity)?.window
             if (window != null) {
-                WindowCompat.getInsetsController(window, view)
-                    .isAppearanceLightStatusBars = !isDark && appTheme != AppTheme.AMOLED
+                val isLightTheme = appTheme == AppTheme.DYNAMIC && !isDark
+                val insetsController = WindowCompat.getInsetsController(window, view)
+                insetsController.isAppearanceLightStatusBars = isLightTheme
+                insetsController.isAppearanceLightNavigationBars = isLightTheme
             }
         }
     }

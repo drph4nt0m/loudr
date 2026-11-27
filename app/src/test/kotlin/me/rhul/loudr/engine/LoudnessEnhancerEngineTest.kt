@@ -80,10 +80,10 @@ class LoudnessEnhancerEngineTest {
     }
 
     @Test
-    fun `enable without session does not attach to global session 0`() = runTest {
-        // H-2: enabling before a real session is available must NOT fall back to session 0
+    fun `enable without session falls back to global session 0`() = runTest {
+        // Restored: enabling before a real session is available must fall back to session 0
         engine.enable()
         assertTrue(engine.isActive.value)
-        assertEquals(-1, engine.currentSessionId.value)
+        assertEquals(0, engine.currentSessionId.value)
     }
 }

@@ -1,31 +1,30 @@
 package me.rhul.loudr.widget
 
+import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
 import androidx.core.content.ContextCompat
-import me.rhul.loudr.R
-import me.rhul.loudr.service.ACTION_TOGGLE_BOOST
-import me.rhul.loudr.service.ACTION_BOOST_UP
-import me.rhul.loudr.service.ACTION_BOOST_DOWN
-import me.rhul.loudr.service.VolumeBoostService
-import android.app.PendingIntent
-import android.content.ComponentName
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import me.rhul.loudr.R
 import me.rhul.loudr.engine.AudioEngineRepository
+import me.rhul.loudr.service.ACTION_BOOST_DOWN
+import me.rhul.loudr.service.ACTION_BOOST_UP
+import me.rhul.loudr.service.ACTION_TOGGLE_BOOST
+import me.rhul.loudr.service.VolumeBoostService
 
 /**
  * Home screen widget provider.
  *
- * L-5 fix: replaced @AndroidEntryPoint / @Inject field injection with
- * [EntryPointAccessors]. AppWidgetProviders are BroadcastReceivers and can be
- * instantiated by the OS before Hilt's application component is ready, causing
- * UninitializedPropertyAccessException with field injection.
+ * Uses [EntryPointAccessors] instead of @AndroidEntryPoint field injection to avoid
+ * UninitializedPropertyAccessException when instantiated by the OS before Hilt's
+ * application component is ready.
  */
 class BoostWidgetProvider : AppWidgetProvider() {
 
@@ -59,12 +58,7 @@ class BoostWidgetProvider : AppWidgetProvider() {
         super.onReceive(context, intent)
         val action = intent.action
         if (action == ACTION_TOGGLE_BOOST || action == ACTION_BOOST_UP || action == ACTION_BOOST_DOWN) {
-            ContextCompat.startForegroundService(
-                context,
-                Intent(context, VolumeBoostService::class.java).apply {
-                    this.action = action
-                },
-            )
+            VolumeBoostService.start(context, action)
         }
     }
 
@@ -91,15 +85,21 @@ class BoostWidgetProvider : AppWidgetProvider() {
             }
 
             val togglePendingIntent = PendingIntent.getBroadcast(
-                context, appWidgetId, toggleIntent,
+                context,
+                appWidgetId * 3,
+                toggleIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
             val upPendingIntent = PendingIntent.getBroadcast(
-                context, appWidgetId + 1000, upIntent,
+                context,
+                appWidgetId * 3 + 1,
+                upIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
             val downPendingIntent = PendingIntent.getBroadcast(
-                context, appWidgetId + 2000, downIntent,
+                context,
+                appWidgetId * 3 + 2,
+                downIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
 
@@ -108,13 +108,14 @@ class BoostWidgetProvider : AppWidgetProvider() {
                 setOnClickPendingIntent(R.id.widget_btn_up, upPendingIntent)
                 setOnClickPendingIntent(R.id.widget_btn_down, downPendingIntent)
 
-                val btnText = if (isActive) "$boostPct%" else "OFF"
+                val btnText = if (isActive) "+$boostPct%" else context.getString(R.string.widget_off)
                 setTextViewText(R.id.widget_text_value, btnText)
 
-                val textColor = if (isActive)
+                val textColor = if (isActive) {
                     ContextCompat.getColor(context, R.color.ic_launcher_foreground)
-                else
+                } else {
                     ContextCompat.getColor(context, android.R.color.white)
+                }
                 setTextColor(R.id.widget_text_value, textColor)
             }
 

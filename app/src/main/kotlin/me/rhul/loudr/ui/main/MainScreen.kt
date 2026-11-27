@@ -9,6 +9,8 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,8 +44,10 @@ import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -70,8 +74,11 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import me.rhul.loudr.R
 import me.rhul.loudr.safety.SafetyEvent
+import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 @Composable
@@ -101,6 +108,7 @@ fun MainScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .safeDrawingPadding()
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = 24.dp, vertical = 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -115,9 +123,7 @@ fun MainScreen(
                     safetyLimiterEnabled = state.safetyLimiterEnabled,
                     onBoostChange        = { viewModel.setBoost(it) },
                 )
-                Spacer(Modifier.height(20.dp))
-                // StreamChips removed
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(24.dp))
                 ControlCard(
                     bassBoostEnabled     = state.bassBoostEnabled,
                     safetyLimiterEnabled = state.safetyLimiterEnabled,
@@ -133,7 +139,7 @@ fun MainScreen(
                     onNotificationToggle = { viewModel.setNotificationEnabled(it) },
                     onThemeChange        = { viewModel.setTheme(it) },
                 )
-                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.height(24.dp))
                 PrivacyFooter()
             }
         } else {
@@ -315,11 +321,13 @@ private fun BoostArcControl(
     val danger     = Color(0xFFE53935)
     // Display values — full range is 0–300%
     val boostPct = (animatedLevel * 300).toInt()
-    val gainDb   = String.format("%.1f", animatedLevel * 20f)
-    
+    val gainDb   = String.format(Locale.getDefault(), "%.1f", animatedLevel * 20f)
+
+    val currentBoostLevel by rememberUpdatedState(boostLevel)
+    val currentOnBoostChange by rememberUpdatedState(onBoostChange)
     val haptic = LocalHapticFeedback.current
     // Track the last step we fired haptic for — avoids repeated feedback on the same step
-    val lastHapticStep = remember { androidx.compose.runtime.mutableIntStateOf(-1) }
+    val lastHapticStep = remember { mutableIntStateOf(-1) }
 
     Box(
         contentAlignment = Alignment.Center,
@@ -328,77 +336,71 @@ private fun BoostArcControl(
             .semantics { contentDescription = "Boost level $boostPct percent" }
             // Raw pointer input — no touch slop, tracks finger from the very first pixel
             .pointerInput(safetyLimiterEnabled) {
-                // Step size: 1/60 of full range → 5 % of 300 % = 15 % per step (30 steps total,
-                // 60 when limiter is off). Using 1/60 keeps step count uniform regardless of ceiling.
+                // Step size: 1/60 of full range → 5% per step (30 steps with limiter on,
+                // 60 when limiter is off).
                 val stepCount = 60                          // steps across full 0–1 range
                 val stepSize  = 1f / stepCount              // ≈ 0.01667
                 val ceiling   = if (safetyLimiterEnabled) 0.5f else 1.0f
-                // Snap zone = ½ step on each side of the endpoint
+                // Snap zone = ~½ step on each side of the endpoint
                 val snapZone  = stepSize * 0.6f
 
-                awaitPointerEventScope {
-                    while (true) {
-                        // Wait for the first finger down — no slop, no delay
-                        val down = awaitPointerEvent()
-                        val pressed = down.changes.firstOrNull { it.pressed } ?: continue
-                        pressed.consume()
-                        isDragging = true
+                fun updateFromPosition(position: Offset) {
+                    val cx = size.width / 2f
+                    val cy = size.height / 2f
+                    var angleDeg = Math.toDegrees(
+                        atan2(
+                            (position.y - cy).toDouble(),
+                            (position.x - cx).toDouble(),
+                        ),
+                    ).toFloat()
+                    if (angleDeg < 0f) angleDeg += 360f
+                    val arcStart = 150f
+                    val arcSweep = 240f
+                    val relative = (angleDeg - arcStart + 360f) % 360f
+                    if (relative <= arcSweep) {
+                        val raw = (relative / arcSweep).coerceIn(0f, 1f)
 
-                        // Track all subsequent moves until finger lifts
-                        var stillDown = true
-                        while (stillDown) {
-                            val event  = awaitPointerEvent()
-                            val change = event.changes.firstOrNull() ?: break
-                            change.consume()
-                            if (!change.pressed) {
-                                stillDown  = false
-                                isDragging = false
-                                break
-                            }
-                            val cx = size.width / 2f
-                            val cy = size.height / 2f
-                            var angleDeg = Math.toDegrees(
-                                atan2(
-                                    (change.position.y - cy).toDouble(),
-                                    (change.position.x - cx).toDouble(),
-                                )
-                            ).toFloat()
-                            if (angleDeg < 0f) angleDeg += 360f
-                            val arcStart = 150f
-                            val arcSweep = 240f
-                            val relative = (angleDeg - arcStart + 360f) % 360f
-                            if (relative <= arcSweep) {
-                                val raw = (relative / arcSweep).coerceIn(0f, 1f)
+                        // 1. Quantise to the nearest discrete step first
+                        val stepped = ((raw / stepSize).roundToInt() * stepSize)
+                            .coerceIn(0f, 1f)
 
-                                // 1. Quantise to the nearest discrete step first
-                                val stepped = (Math.round(raw / stepSize) * stepSize)
-                                    .coerceIn(0f, 1f)
+                        // 2. Endpoint snapping: lock to 0 or ceiling when close
+                        val finalValue = when {
+                            stepped <= snapZone           -> 0f
+                            stepped >= ceiling - snapZone -> ceiling
+                            else                          -> stepped.coerceIn(0f, ceiling)
+                        }
 
-                                // 2. Endpoint snapping: lock to 0 or ceiling when close
-                                val finalValue = when {
-                                    stepped <= snapZone           -> 0f
-                                    stepped >= ceiling - snapZone -> ceiling
-                                    stepped > ceiling             -> ceiling
-                                    else                          -> stepped.coerceIn(0f, ceiling)
-                                }
-
-                                // 3. Haptic: fire exactly once per discrete step,
-                                //    NOT on every pointer event (avoids buzz-gun effect).
-                                val stepIndex = Math.round(finalValue / stepSize)
-                                if (stepIndex != lastHapticStep.intValue) {
-                                    lastHapticStep.intValue = stepIndex
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    // Heavier tick when snapping to the hard ceiling
-                                    if (finalValue >= ceiling && boostLevel < ceiling) {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    }
-                                }
-
-                                if (Math.abs(finalValue - boostLevel) > 0.001f) {
-                                    onBoostChange(finalValue)
-                                }
+                        // 3. Haptic: fire exactly once per discrete step
+                        val stepIndex = (finalValue / stepSize).roundToInt()
+                        if (stepIndex != lastHapticStep.intValue) {
+                            lastHapticStep.intValue = stepIndex
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            if (finalValue >= ceiling && currentBoostLevel < ceiling) {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             }
                         }
+
+                        if (abs(finalValue - currentBoostLevel) > 0.001f) {
+                            currentOnBoostChange(finalValue)
+                        }
+                    }
+                }
+
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    down.consume()
+                    isDragging = true
+                    updateFromPosition(down.position)
+                    try {
+                        while (true) {
+                            val event  = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            change.consume()
+                            if (!change.pressed) break
+                            updateFromPosition(change.position)
+                        }
+                    } finally {
                         isDragging = false
                     }
                 }

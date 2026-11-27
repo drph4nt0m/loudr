@@ -100,4 +100,38 @@ class SafetyLimiterTest {
         limiter.enableExpertMode()
         assertTrue(limiter.expertMode.value)
     }
+
+    @Test
+    fun `setLimiterEnabled false raises ceiling and true restores default and resets expertMode`() {
+        limiter.enableExpertMode()
+        limiter.setLimiterEnabled(false)
+        assertFalse(limiter.limiterEnabled.value)
+        assertEquals(SafetyLimiter.EXPERT_CEILING, limiter.ceiling.value, 0.001f)
+        assertEquals(1.0f, limiter.clamp(1.0f), 0.001f)
+
+        limiter.setLimiterEnabled(true)
+        assertTrue(limiter.limiterEnabled.value)
+        assertFalse(limiter.expertMode.value)
+        assertEquals(SafetyLimiter.DEFAULT_CEILING, limiter.ceiling.value, 0.001f)
+        assertEquals(SafetyLimiter.DEFAULT_CEILING, limiter.clamp(1.0f), 0.001f)
+    }
+
+    @Test
+    fun `recordExposureTick fires ExposureWarning after 30 minutes at or above threshold`() {
+        var nowMs = 1_000_000L
+        val timedLimiter = SafetyLimiter(monotonicClockMs = { nowMs })
+
+        timedLimiter.recordExposureTick(SafetyLimiter.LOUD_THRESHOLD)
+        assertNull(timedLimiter.safetyEvents.value)
+
+        nowMs += 29 * 60_000L
+        timedLimiter.recordExposureTick(SafetyLimiter.LOUD_THRESHOLD)
+        assertNull(timedLimiter.safetyEvents.value)
+
+        nowMs += 60_000L
+        timedLimiter.recordExposureTick(SafetyLimiter.LOUD_THRESHOLD)
+        val event = timedLimiter.safetyEvents.value
+        assertTrue(event is SafetyEvent.ExposureWarning)
+        assertEquals(30L, (event as SafetyEvent.ExposureWarning).minutes)
+    }
 }

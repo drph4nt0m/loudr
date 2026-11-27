@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
  */
 interface AudioEngineRepository {
 
-    /** Normalised boost level: 0.0f = no boost, 1.0f = maximum (+1500 mB). */
+    /** Normalised boost level: 0.0f = no boost, 1.0f = maximum (+2000 mB / +20 dB). */
     val boostLevel: StateFlow<Float>
 
     /** Whether the boost engine is currently active. */

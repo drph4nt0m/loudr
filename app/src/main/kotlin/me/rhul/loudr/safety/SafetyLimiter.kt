@@ -13,16 +13,21 @@ private const val TAG = "SafetyLimiter"
 /**
  * Enforces a configurable gain ceiling to protect hearing health.
  *
- * Default ceiling is +6 dB (≈ 200%), equivalent to a normalised value of ~0.8
- * on a 0–1500 mB scale. Users can opt into "Expert Mode" (up to 1.0 / 1500 mB)
- * after explicitly acknowledging the hearing risk warning.
+ * Default ceiling is +10 dB (+150%), equivalent to a normalised value of 0.5
+ * on a 0–2000 mB scale. Users can disable the safety limiter (or enable
+ * Expert Mode) to unlock up to 1.0 (+20 dB / +300%) after acknowledging the
+ * hearing risk warning.
  *
- * The limiter also tracks cumulative loud-exposure duration and emits a
- * [SafetyEvent.ExposureWarning] after [EXPOSURE_WARNING_MINUTES] minutes of
- * sustained high-level output.
+ * The limiter also tracks cumulative loud-exposure duration using a monotonic
+ * clock and emits a [SafetyEvent.ExposureWarning] after [EXPOSURE_WARNING_MINUTES]
+ * minutes of sustained high-level output.
  */
 @Singleton
-class SafetyLimiter @Inject constructor() {
+class SafetyLimiter internal constructor(
+    private val monotonicClockMs: () -> Long,
+) {
+    @Inject
+    constructor() : this({ System.nanoTime() / 1_000_000L })
 
     companion object {
         /**
@@ -52,6 +57,8 @@ class SafetyLimiter @Inject constructor() {
          * 30 min is a conservative middle ground.
          */
         const val EXPOSURE_WARNING_MINUTES: Long = 30L
+
+        private const val UNSET_TIMESTAMP = Long.MIN_VALUE
     }
 
     private val _ceiling        = MutableStateFlow(DEFAULT_CEILING)
@@ -71,8 +78,8 @@ class SafetyLimiter @Inject constructor() {
     /** Emits [SafetyEvent]s such as [SafetyEvent.ExposureWarning]. */
     val safetyEvents: StateFlow<SafetyEvent?> = _safetyEvents.asStateFlow()
 
-    // Exposure tracking — AtomicLong with -1L sentinel (replaces nullable Long to avoid data races)
-    private val loudStartMs = AtomicLong(-1L)
+    // Exposure tracking — monotonic timestamp with UNSET_TIMESTAMP sentinel
+    private val loudStartMs = AtomicLong(UNSET_TIMESTAMP)
 
     // -------------------------------------------------------------------------
     // Public API
@@ -90,11 +97,12 @@ class SafetyLimiter @Inject constructor() {
     fun setLimiterEnabled(enabled: Boolean) {
         _limiterEnabled.value = enabled
         if (!enabled) {
-            _ceiling.value = EXPERT_CEILING   // raise ceiling so SafetyLimiter math stays consistent
+            _ceiling.value = EXPERT_CEILING
             Log.w(TAG, "Safety limiter disabled — full range active")
         } else {
+            _expertMode.value = false
             _ceiling.value = DEFAULT_CEILING
-            Log.d(TAG, "Safety limiter enabled — ceiling restored to ${DEFAULT_CEILING}")
+            Log.d(TAG, "Safety limiter enabled — ceiling restored to $DEFAULT_CEILING")
         }
     }
 
@@ -105,7 +113,7 @@ class SafetyLimiter @Inject constructor() {
     fun enableExpertMode() {
         _expertMode.value = true
         _ceiling.value = EXPERT_CEILING
-        Log.w(TAG, "Expert mode enabled — ceiling raised to ${EXPERT_CEILING}")
+        Log.w(TAG, "Expert mode enabled — ceiling raised to $EXPERT_CEILING")
     }
 
     /**
@@ -114,7 +122,7 @@ class SafetyLimiter @Inject constructor() {
     fun disableExpertMode() {
         _expertMode.value = false
         _ceiling.value = DEFAULT_CEILING
-        Log.d(TAG, "Expert mode disabled — ceiling restored to ${DEFAULT_CEILING}")
+        Log.d(TAG, "Expert mode disabled — ceiling restored to $DEFAULT_CEILING")
     }
 
     /**
@@ -130,24 +138,25 @@ class SafetyLimiter @Inject constructor() {
     }
 
     /**
-     * Should be called each time the gain is actively applied.
+     * Should be called while audio boost is actively applied.
      * Tracks loud exposure duration and fires [SafetyEvent.ExposureWarning]
      * if the user has been listening loudly for [EXPOSURE_WARNING_MINUTES].
      */
     fun recordExposureTick(level: Float) {
         if (level >= LOUD_THRESHOLD) {
-            val now = System.currentTimeMillis()
-            // Only set the start timestamp if not already tracking (atomic compare-and-set)
-            loudStartMs.compareAndSet(-1L, now)
+            val now = monotonicClockMs()
+            loudStartMs.compareAndSet(UNSET_TIMESTAMP, now)
             val start = loudStartMs.get()
-            val elapsedMinutes = (now - start) / 60_000L
-            if (elapsedMinutes >= EXPOSURE_WARNING_MINUTES) {
-                _safetyEvents.value = SafetyEvent.ExposureWarning(elapsedMinutes)
-                loudStartMs.set(-1L)  // Reset after warning
-                Log.w(TAG, "Exposure warning fired after ${elapsedMinutes}min")
+            if (start != UNSET_TIMESTAMP) {
+                val elapsedMinutes = (now - start) / 60_000L
+                if (elapsedMinutes >= EXPOSURE_WARNING_MINUTES) {
+                    _safetyEvents.value = SafetyEvent.ExposureWarning(elapsedMinutes)
+                    loudStartMs.set(UNSET_TIMESTAMP)
+                    Log.w(TAG, "Exposure warning fired after ${elapsedMinutes}min")
+                }
             }
         } else {
-            loudStartMs.set(-1L)  // Reset when level drops
+            loudStartMs.set(UNSET_TIMESTAMP)
         }
     }
 

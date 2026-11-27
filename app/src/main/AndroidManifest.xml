@@ -41,7 +41,7 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.VoluMax">
+        android:theme="@style/Theme.Loudr">
 
         <!-- Main Activity -->
         <activity
@@ -96,16 +96,7 @@
                 android:resource="@xml/toggle_widget_info" />
         </receiver>
 
-        <!-- Audio session broadcast receiver -->
-        <receiver
-            android:name=".engine.AudioSessionMonitor"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.media.action.HEADSET_PLUG" />
-                <action android:name="android.bluetooth.headset.action.CONNECTION_STATE_CHANGED" />
-                <action android:name="android.bluetooth.a2dp.profile.action.CONNECTION_STATE_CHANGED" />
-            </intent-filter>
-        </receiver>
+        <!-- AudioSessionMonitor is registered dynamically in VolumeBoostService -->
 
     </application>
 
